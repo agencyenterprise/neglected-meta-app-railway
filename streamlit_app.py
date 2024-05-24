@@ -8,6 +8,7 @@ from cav_calc import compare_authors, batch_author_similarity_score
 import torch
 import json
 import numpy as np
+import os
 
 tqdm.pandas()
 app_info: pd.DataFrame = pd.read_json("app_files/app_info_enhanced.jsonl", lines=True)
