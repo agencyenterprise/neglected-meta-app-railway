@@ -8,8 +8,10 @@ import datetime
 import os
 import io
 from googleapiclient.http import MediaIoBaseDownload
+import shutil
 
-CLIENT_SECRET_FILE = 'client_secret_127500377543-tlmpgfu3070ifdkge223oaonhmu2442c.apps.googleusercontent.com.json'
+
+CLIENT_SECRET_FILE = 'secret_file.json'
 API_NAME = 'drive'
 API_VERSION = 'v3'
 SCOPES = ['https://www.googleapis.com/auth/drive']
