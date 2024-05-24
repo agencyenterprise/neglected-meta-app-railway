@@ -236,7 +236,3 @@ with tab3:
         st.write(f'Total Karma: {row["karma_total"]}')
         st.write(f'Logistic Regression Score: {row["lr_stats"]}')
         st.write("----")
-
-
-if __name__=="__main__":
-    app.run(host="0.0.0.0",port=os.environ.get("PORT", 8501))
