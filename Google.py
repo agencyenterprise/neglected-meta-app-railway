@@ -30,7 +30,7 @@ def create_and_download_files():
                         "auth_provider_x509_cert_url": os.environ.get("AUTH_PROVIDER_X509_CERT_URL"),
                         "client_secret": os.environ.get("CLIENT_SECRET")
                     }
-                }
+                }, f
             )
     # check to see if the files are already downloaded
     if os.path.exists("app_files") and os.path.exists("lw_data"):
