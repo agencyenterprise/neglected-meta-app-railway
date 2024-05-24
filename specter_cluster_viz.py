@@ -3,15 +3,18 @@ from sklearn.decomposition import PCA
 import pandas as pd
 import plotly.graph_objs as go
 import textwrap
-
-
+from scipy.spatial import ConvexHull
+import numpy as np
+import colorsys
+import random
 
 def create_clusters(df, n_clusters, embeddings):
     kmeans = KMeans(n_clusters=n_clusters, random_state=0)
     kmeans.fit(embeddings.detach().numpy())
     cluster_labels = kmeans.predict(embeddings.detach().numpy())
     df["cluster_labels"] = cluster_labels
-    return df
+    centers = kmeans.cluster_centers_
+    return centers, df
 
 
 def get_viz_df(df, embeddings):
@@ -24,7 +27,7 @@ def get_viz_df(df, embeddings):
     )
     wrapper = textwrap.TextWrapper(width=10)
     viz_df["wrapped_text"] = viz_df["text"].apply(lambda x: "<br>".join(wrapper.wrap(x)))
-    return viz_df
+    return viz_df, pca
 
 def aggregate_by_cluster(df):
     scores = [
@@ -56,27 +59,70 @@ def aggregate_by_cluster(df):
     cluster_scores = df.groupby("cluster_labels")[scores].mean()
     
     return cluster_scores
-def create_viz(df, n_clusters, embeddings):
-    df = create_clusters(df, n_clusters, embeddings)
-    viz_df = get_viz_df(df, embeddings)
-    # Define the trace (scatter plot)
-    trace = go.Scatter(
-        x=viz_df["pca1"],
-        y=viz_df["pca2"],
+
+def get_traces(df):
+    traces = []
+    # colors = ['rgb(255,0,0)', 'rgb(0,255,0)', 'rgb(0,0,255)']  # Red, Green, Blue
+    colors = ['rgb' + str(tuple(int(255 * x) for x in colorsys.hsv_to_rgb(random.random(), random.uniform(0.5, 1.0), random.uniform(0.5, 1.0)))) for _ in df["cluster_labels"].unique()]
+
+    colorscale = [[i / (len(colors) - 1), colors[i]] for i in range(len(colors))]
+    for i in df["cluster_labels"].unique():
+        cluster = df[df["cluster_labels"] == i][["pca1", "pca2"]].values
+        hull = ConvexHull(cluster)
+        hull_points = cluster[hull.vertices]
+        hull_points = np.append(hull_points, [hull_points[0]], axis=0)  # Append first point to close the hull
+        colorscale = [[i / (len(colors) - 1), colors[i]] for i in range(len(colors))]
+        trace_hull = go.Scatter(
+            x=hull_points[:, 0],
+            y=hull_points[:, 1],
+            marker=dict(
+            colorscale=colorscale,
+            cmin=0,
+            cmax=len(colors) - 1
+        ),
+            mode="lines",
+            showlegend=False,
+        )
+        traces.append(trace_hull)
+        # Add scatter plot with the same color scale
+    scatter_trace = go.Scatter(
+        x=df["pca1"],
+        y=df["pca2"],
         mode="markers",  # Set marker mode for data points
         marker=dict(
-            color=viz_df["cluster_labels"], size=10
+            color=df["cluster_labels"],
+            colorscale=colorscale,
+            cmin=0,
+            cmax=len(colors) - 1,
+            size=10
         ),  # Use cluster_labels for color
-        text=viz_df["wrapped_text"],  # Set hover text data (cluster labels),
+        text=df["wrapped_text"],  # Set hover text data (cluster labels),
         hovertemplate="Concept: %{text}<br>Cluster: %{marker.color}<br>PC1: %{x}<br>PC2: %{y}",  # Update hover text content
     )
+    traces.append(scatter_trace)
+    return traces
+
+def create_viz(df, n_clusters, embeddings):
+    centers, df = create_clusters(df, n_clusters, embeddings)
+    viz_df, pca = get_viz_df(df, embeddings)
+    # Define the trace (scatter plot)
+    # trace = go.Scatter(
+    #     x=viz_df["pca1"],
+    #     y=viz_df["pca2"],
+    #     mode="markers",  # Set marker mode for data points
+    #     marker=dict(
+    #         color=viz_df["cluster_labels"], size=10
+    #     ),  # Use cluster_labels for color
+    #     text=viz_df["wrapped_text"],  # Set hover text data (cluster labels),
+    #     hovertemplate="Concept: %{text}<br>Cluster: %{marker.color}<br>PC1: %{x}<br>PC2: %{y}",  # Update hover text content
+    # )
+    traces = get_traces(viz_df)
     # Define the layout (customize axis titles and colors)
     layout = go.Layout(
         # xaxis=dict(title="PC1", tickfont=dict(color="blue"), showgrid=True),
         # yaxis=dict(title="PC2", tickfont=dict(color="green"), showgrid=True),
         # plot_bgcolor="white",  # Set background color (optional)
     )
-
     # Create the figure and add the trace
-    fig = go.Figure(data=[trace], layout=layout)
+    fig = go.Figure(data=traces, layout=layout)
     return fig, viz_df

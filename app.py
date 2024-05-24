@@ -9,6 +9,7 @@ import torch
 import json
 import numpy as np
 
+
 tqdm.pandas()
 app_info: pd.DataFrame = pd.read_json("app_files/app_info_enhanced.jsonl", lines=True)
 lwd = LessWrongData()
