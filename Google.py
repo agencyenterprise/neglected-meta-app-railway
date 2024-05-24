@@ -17,6 +17,9 @@ API_VERSION = 'v3'
 SCOPES = ['https://www.googleapis.com/auth/drive']
 
 def create_and_download_files():
+    # check to see if the files are already downloaded
+    if os.path.exists("app_files") and os.path.exists("lw_data"):
+        return
     file_ids = ["1cyyNMD5wj53mc_cMLfL8VoTHVWDdO1Z7","1nfiT_8YptIsTobWewZ--miOOYdOgSu-O"]
     file_paths = ["app_files.zip", "lw_data.zip"]
     download_files(file_ids, file_paths)

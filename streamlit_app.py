@@ -10,15 +10,17 @@ import json
 import numpy as np
 import os
 from Google import create_and_download_files
-create_and_download_files()
+
 tqdm.pandas()
+
+create_and_download_files()
+specter_embeddings = torch.load("app_files/specter_embeddings.pt")
+style_embeddings = torch.load("app_files/style_embeddings.pt")
 app_info: pd.DataFrame = pd.read_json("app_files/app_info_enhanced.jsonl", lines=True)
 lwd = LessWrongData()
 df = lwd.lw_df()
 df.fillna("", inplace=True)
 df["articles_id"] = df.index
-specter_embeddings = torch.load("app_files/specter_embeddings.pt")
-style_embeddings = torch.load("app_files/style_embeddings.pt")
 with open("app_files/authors.json", "r") as f:
     author_name_list = json.load(f)
 with open("app_files/titles.json", "r") as f:
