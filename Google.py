@@ -27,7 +27,7 @@ def create_and_download_files():
                     "type": "service_account",
                     "project_id": "sage-wave-424300-f0",
                     "private_key_id": os.environ.get("PRIVATE_KEY_ID"),
-                    "private_key": os.environ.get("PRIVATE_KEY").replace("\\n", "\n")
+                    "private_key": os.environ.get("PRIVATE_KEY").replace("\n", "\n"),
                     "client_email": "railway@sage-wave-424300-f0.iam.gserviceaccount.com",
                     "client_id": "112563351930272270885",
                     "auth_uri": "https://accounts.google.com/o/oauth2/auth",
