@@ -60,7 +60,7 @@ def aggregate_by_cluster(df):
     
     return cluster_scores
 
-def get_traces(df):
+def get_traces(df, cluster_choice):
     traces = []
     # colors = ['rgb(255,0,0)', 'rgb(0,255,0)', 'rgb(0,0,255)']  # Red, Green, Blue
     colors = ['rgb' + str(tuple(int(255 * x) for x in colorsys.hsv_to_rgb(random.random(), random.uniform(0.5, 1.0), random.uniform(0.5, 1.0)))) for _ in df["cluster_labels"].unique()]
@@ -68,9 +68,12 @@ def get_traces(df):
     colorscale = [[i / (len(colors) - 1), colors[i]] for i in range(len(colors))]
     for i in df["cluster_labels"].unique():
         cluster = df[df["cluster_labels"] == i][["pca1", "pca2"]].values
-        hull = ConvexHull(cluster)
-        hull_points = cluster[hull.vertices]
-        hull_points = np.append(hull_points, [hull_points[0]], axis=0)  # Append first point to close the hull
+        if cluster.shape[0] < 3:
+            hull_points = cluster
+        else:
+            hull = ConvexHull(cluster)
+            hull_points = cluster[hull.vertices]
+            hull_points = np.append(hull_points, [hull_points[0]], axis=0)  # Append first point to close the hull
         colorscale = [[i / (len(colors) - 1), colors[i]] for i in range(len(colors))]
         trace_hull = go.Scatter(
             x=hull_points[:, 0],
@@ -85,6 +88,9 @@ def get_traces(df):
         )
         traces.append(trace_hull)
         # Add scatter plot with the same color scale
+    
+    df["shape"] = df["cluster_labels"].apply(lambda x: "star" if x == cluster_choice else "circle")
+    # df_cir
     scatter_trace = go.Scatter(
         x=df["pca1"],
         y=df["pca2"],
@@ -94,7 +100,8 @@ def get_traces(df):
             colorscale=colorscale,
             cmin=0,
             cmax=len(colors) - 1,
-            size=10
+            size=10,
+            symbol=df["shape"]
         ),  # Use cluster_labels for color
         text=df["wrapped_text"],  # Set hover text data (cluster labels),
         hovertemplate="Concept: %{text}<br>Cluster: %{marker.color}<br>PC1: %{x}<br>PC2: %{y}",  # Update hover text content
@@ -102,7 +109,7 @@ def get_traces(df):
     traces.append(scatter_trace)
     return traces
 
-def create_viz(df, n_clusters, embeddings):
+def create_viz(df, n_clusters, embeddings, cluster_choice):
     centers, df = create_clusters(df, n_clusters, embeddings)
     viz_df, pca = get_viz_df(df, embeddings)
     # Define the trace (scatter plot)
@@ -116,13 +123,6 @@ def create_viz(df, n_clusters, embeddings):
     #     text=viz_df["wrapped_text"],  # Set hover text data (cluster labels),
     #     hovertemplate="Concept: %{text}<br>Cluster: %{marker.color}<br>PC1: %{x}<br>PC2: %{y}",  # Update hover text content
     # )
-    traces = get_traces(viz_df)
-    # Define the layout (customize axis titles and colors)
-    layout = go.Layout(
-        # xaxis=dict(title="PC1", tickfont=dict(color="blue"), showgrid=True),
-        # yaxis=dict(title="PC2", tickfont=dict(color="green"), showgrid=True),
-        # plot_bgcolor="white",  # Set background color (optional)
-    )
-    # Create the figure and add the trace
-    fig = go.Figure(data=traces, layout=layout)
-    return fig, viz_df
+    traces = get_traces(viz_df, cluster_choice)
+    return traces, viz_df
+

@@ -222,9 +222,9 @@ with tab3:
         It will be printed below the selection.
         """
         )
-    fig,df_with_clusters = create_viz(app_info, n, specter_embeddings)
-    st.plotly_chart(fig)
     cluster_choice = st.number_input("Which cluster would you like to explore?", 0, n-1, 0)
+    fig,df_with_clusters = create_viz(app_info, n, specter_embeddings, cluster_choice)
+    st.plotly_chart(fig)
     df_cluster = df_with_clusters[df_with_clusters["cluster_labels"] == cluster_choice].reset_index(drop=True)
     for i, row in df_cluster.iterrows():
         st.write(f"Concept {i}")
