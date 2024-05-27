@@ -27,16 +27,18 @@ with open("app_files/titles.json", "r") as f:
     article_names = json.load(f)
 
 
-def custom_sort(columns, ascendings, head_n=5):
+def custom_sort(columns, ascendings, head_n=5, truncate=False):
     show_columns = list(
         set(
             ["text", "urls", "definition", "comments_total", "karma_total", "lr_stats"]
             + columns
         )
     )
-    return app_info.sort_values(columns, ascending=ascendings).head(head_n)[
-        show_columns
-    ]
+    if truncate:
+        return app_info.sort_values(columns, ascending=ascendings).head(head_n)[
+            show_columns
+        ]
+    return app_info.sort_values(columns, ascending=ascendings)[show_columns]
 
 
 tab1, tab2, tab3 = st.tabs(["DataFrame", "Similarity Score", "SPECTER Clustering"])
@@ -115,7 +117,8 @@ with tab1:
             agree = []
 
         n = st.number_input("How many rows to show?", 5, 100, 5)
-    filtered_df = custom_sort(options, agree, n)
+        truncate = st.checkbox("Truncate to top n rows?", True)
+    filtered_df = custom_sort(options, agree, n, truncate=truncate)
     st.write(filtered_df)
     st.write("This is a small subset of the data based on your search criteria.")
 
@@ -223,7 +226,9 @@ with tab3:
         """
         )
     cluster_choice = st.number_input("Which cluster would you like to explore?", 0, n-1, 0)
-    fig,df_with_clusters = create_viz(app_info, n, specter_embeddings, cluster_choice)
+    select_by_content = st.selectbox("Select by content", app_info["text"].to_list(),None)
+    fig, df_with_clusters, cluster_choice = create_viz(app_info, n, specter_embeddings, cluster_choice, select_by_content)
+
     st.plotly_chart(fig)
     df_cluster = df_with_clusters[df_with_clusters["cluster_labels"] == cluster_choice].reset_index(drop=True)
     for i, row in df_cluster.iterrows():

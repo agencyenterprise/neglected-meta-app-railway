@@ -109,7 +109,7 @@ def get_traces(df, cluster_choice):
     traces.append(scatter_trace)
     return traces
 
-def create_viz(df, n_clusters, embeddings, cluster_choice):
+def create_viz(df, n_clusters, embeddings, cluster_choice, selected_content=None):
     centers, df = create_clusters(df, n_clusters, embeddings)
     viz_df, pca = get_viz_df(df, embeddings)
     # Define the trace (scatter plot)
@@ -123,6 +123,8 @@ def create_viz(df, n_clusters, embeddings, cluster_choice):
     #     text=viz_df["wrapped_text"],  # Set hover text data (cluster labels),
     #     hovertemplate="Concept: %{text}<br>Cluster: %{marker.color}<br>PC1: %{x}<br>PC2: %{y}",  # Update hover text content
     # )
+    if selected_content is not None:
+        cluster_choice = viz_df[viz_df["text"] ==selected_content]["cluster_labels"].unique()[0]
     traces = get_traces(viz_df, cluster_choice)
-    return traces, viz_df
+    return traces, viz_df, cluster_choice
 
