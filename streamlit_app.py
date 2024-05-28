@@ -5,6 +5,7 @@ from load import LessWrongData  # , LWCounts
 import streamlit as st
 from specter_cluster_viz import create_viz
 from cav_calc import compare_authors, batch_author_similarity_score
+from sentence_transformers import util
 import torch
 import json
 import numpy as np
@@ -16,6 +17,8 @@ tqdm.pandas()
 create_and_download_files()
 specter_embeddings = torch.load("app_files/specter_embeddings.pt")
 style_embeddings = torch.load("app_files/style_embeddings.pt")
+top_100_embeddings = torch.load("app_files/top_100_embeddings.pt")
+
 app_info: pd.DataFrame = pd.read_json("app_files/app_info_enhanced.jsonl", lines=True)
 lwd = LessWrongData()
 df = lwd.lw_df()
@@ -117,7 +120,7 @@ with tab1:
             agree = []
 
         n = st.number_input("How many rows to show?", 5, 100, 5)
-        truncate = st.checkbox("Truncate to top n rows?", True)
+        truncate = st.checkbox(f"Truncate to only the top {n} rows?\n This will limit how many categories you can see and interact with.", True)
     filtered_df = custom_sort(options, agree, n, truncate=truncate)
     st.write(filtered_df)
     st.write("This is a small subset of the data based on your search criteria.")
@@ -193,12 +196,15 @@ with tab2:
         compared_authors = [[a] for a in compared_authors] + [[a for a in default_authors if a != "beren"]]
 
         article_idx = np.where(df["title"].isin(article_list))[0]
-        sim_scores = batch_author_similarity_score(
-                [a for a in compared_authors], df, style_embeddings
-            )[:, article_idx].T[0]
+        sim_scores_tensor, top_100_score = batch_author_similarity_score(
+                [a for a in compared_authors], df, style_embeddings, top_100_embedding=top_100_embeddings
+            )
+        sim_scores = torch.mean(sim_scores_tensor[:, article_idx].T, axis = 0)
+        top_100_score = torch.mean(top_100_score)
         output_text = "|Author|Cosine Similarity|\n|---|---|\n"
         for label, sim in zip(labels, sim_scores):
             output_text += f"|{label}|{sim:.2f}|\n"
+        output_text += f"|Top 100 Authors|{top_100_score:.2f}|\n"
         st.markdown(output_text)
 
 

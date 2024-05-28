@@ -2,6 +2,7 @@ from sentence_transformers import SentenceTransformer, util
 import numpy as np
 import pandas as pd
 from typing import List, Optional
+
 def get_author_style_embedding(author_name_list: List, df: pd.DataFrame, style_embeddings: np.ndarray):
     author_df = df.explode("authors")
     author_df = author_df[author_df["authors"].isin(author_name_list)]
@@ -26,7 +27,8 @@ def get_author_similarity_score(author_name_list: List[str], df: pd.DataFrame, s
 
 def batch_author_similarity_score(author_name_batch: List[List[str]], df: pd.DataFrame,
                                   style_embeddings: np.ndarray,
-                                  concept_embedding: Optional[np.ndarray] = None):
+                                  concept_embedding: Optional[np.ndarray] = None,
+                                  top_100_embedding: Optional[np.ndarray] = None):
     """_summary_
 
     Args:
@@ -36,11 +38,15 @@ def batch_author_similarity_score(author_name_batch: List[List[str]], df: pd.Dat
     """
     author_embeddings = [get_author_style_embedding(a, df, style_embeddings)
                          for a in author_name_batch]
+    top_100_score = None
     if concept_embedding is not None:
         scores = util.cos_sim(np.vstack(author_embeddings), concept_embedding)
     else:
         scores = util.cos_sim(np.vstack(author_embeddings), style_embeddings)
-    return scores
+        
+    if top_100_embedding is not None:
+        top_100_score = util.cos_sim(top_100_embedding, style_embeddings)
+    return scores, top_100_score
 
 def compare_authors(author_pair: List[str], df: pd.DataFrame, style_embeddings: np.ndarray):
     """Creates pairwise score for the style of two selected authors.
