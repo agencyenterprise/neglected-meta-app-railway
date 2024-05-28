@@ -109,7 +109,7 @@ with tab1:
         if options:
             agree = [
                 st.checkbox(
-                    f"Do you want to see lowest values for `{score}`?\nIf not will sort ascending?"
+                    f"Do you want to sort `{score}` ascending?\nThis will show the lowest values first"
                 )
                 for score in options
             ]
