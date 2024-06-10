@@ -21,6 +21,7 @@ charset-normalizer==3.3.2
 click==8.1.7
 contourpy==1.2.1
 cycler==0.12.1
+dash-cytoscape==0.2.0
 dataclasses-json==0.6.5
 deap==1.4.1
 debugpy==1.8.1

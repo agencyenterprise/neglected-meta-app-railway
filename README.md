@@ -5,6 +5,14 @@
 2. [Previous Work - Mose](#update-05152024)
 3. [Previous Work - Steve](#update-05012024)
 
+# Railway Deployment
+## streamlit apps
+`streamlit run streamlit_app.py --server.address 0.0.0.0 --server.port $PORT --server.fileWatcherType none --browser.gatherUsageStats false --client.toolbarMode minimal`
+add a variable named `PORT` to environment variables
+
+## Dash Apps
+`python3 dash_app.py`
+
 # Data Walkthrough
 Data Features
 - article text
