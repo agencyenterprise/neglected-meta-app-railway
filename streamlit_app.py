@@ -32,15 +32,17 @@ with open("app_files/titles.json", "r") as f:
     article_names = json.load(f)
 
 STANDARD_SIZE = 25
-df["dot_size"] = 10 + (df["karma"] - df["karma"].min()) / (
-    df["karma"].max() - df["karma"].min()
-) * 90
+MIN_SIZE = 10
+df["dot_size"] = (
+    MIN_SIZE
+    + (df["karma"] - df["karma"].min()) / (df["karma"].max() - df["karma"].min()) * 90
+)
 # df["dot_size"] = (df["karma"] - df["karma"].min()) / (
 #     df["karma"].max() - df["karma"].min()
 # ) * STANDARD_SIZE + 10
 user_df["dot_size"] = (user_df["karma"] - user_df["karma"].min()) / (
     user_df["karma"].max() - user_df["karma"].min()
-) * 90 + 10
+) * 90 + MIN_SIZE
 
 
 def custom_sort(columns, ascendings, head_n=5, truncate=False):
@@ -283,19 +285,14 @@ with tab3:
         st.write(f'Total Karma: {row["karma_total"]}')
         st.write(f'Logistic Regression Score: {row["lr_stats"]}')
         st.write("----")
+
+
 @st.cache_data
 def get_raw_graph(df, comments, post_id, user_df, d=2):
     return build_graph(df, comments, post_id, user_df, depth=d)
 
-with tab4:
-    st.write("Knowledge Graph")
-    a_name = st.selectbox("Select a post to explore", article_names)
-    post_id = df[df["title"] == a_name]["_id"].values[0]
-    raw_nodes, raw_edges = get_raw_graph(df, comments, post_id, user_df, d=1)
-    nodes = []
-    edges = []
-    STANDARD_SIZE = 25
-    print("creating nodes")
+@st.cache_resource(experimental_allow_widgets=True)
+def visualize_kg(raw_nodes, raw_edges):
     for node in raw_nodes:
         if node["type"] == "post":
             nodes.append(
@@ -325,7 +322,7 @@ with tab4:
                     id=node["id"],
                     # label=node["label"],
                     title=node["url"],
-                    size=STANDARD_SIZE,
+                    size=MIN_SIZE,
                     type=node["type"],
                     color="orange",
                 )
@@ -339,19 +336,31 @@ with tab4:
                 target=edge["target"],
             )
         )
-    config = Config(width=900,
-                    height=1000,
-                    directed=True,
-                    physics=True,
-                    hierarchical=False,
-                    node={'labelProperty':'label'},
-                    link={'labelProperty': 'label', 'renderLabel': True}
-                    # **kwargs
-                    )
+    config = Config(
+        width=900,
+        height=1000,
+        directed=True,
+        physics=True,
+        hierarchical=False,
+        node={"labelProperty": "label"},
+        link={"labelProperty": "label", "renderLabel": True},
+        # **kwargs
+    )
     # config_builder = ConfigBuilder(nodes)
     print("here's a graph")
     # config = config_builder.build()
     return_value = agraph(nodes=nodes, edges=edges, config=config)
+
+with tab4:
+    st.write("Knowledge Graph")
+    a_name = st.selectbox("Select a post to explore", article_names)
+    depth = st.number_input("How many degrees of separation?", 1, 5, 2)
+    post_id = df[df["title"] == a_name]["_id"].values[0]
+    raw_nodes, raw_edges = get_raw_graph(df, comments, post_id, user_df, d=depth)
+    nodes = []
+    edges = []
+    print("creating nodes")
+    visualize_kg(raw_nodes, raw_edges)
     print("foo")
     # nodes.append( Node(id="Marvel",
     #                 label="foobar",
