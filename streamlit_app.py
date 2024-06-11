@@ -12,6 +12,7 @@ import os
 from Google import create_and_download_files
 from knowledge_graph_visuals import build_graph
 
+
 create_and_download_files()
 specter_embeddings = torch.load("app_files/specter_embeddings.pt")
 style_embeddings = torch.load("app_files/style_embeddings.pt")
@@ -31,12 +32,15 @@ with open("app_files/titles.json", "r") as f:
     article_names = json.load(f)
 
 STANDARD_SIZE = 25
-df["dot_size"] = (df["karma"] - df["karma"].min()) / (
+df["dot_size"] = 10 + (df["karma"] - df["karma"].min()) / (
     df["karma"].max() - df["karma"].min()
-) * STANDARD_SIZE + 10
+) * 90
+# df["dot_size"] = (df["karma"] - df["karma"].min()) / (
+#     df["karma"].max() - df["karma"].min()
+# ) * STANDARD_SIZE + 10
 user_df["dot_size"] = (user_df["karma"] - user_df["karma"].min()) / (
     user_df["karma"].max() - user_df["karma"].min()
-) * STANDARD_SIZE + 10
+) * 90 + 10
 
 
 def custom_sort(columns, ascendings, head_n=5, truncate=False):
@@ -335,8 +339,8 @@ with tab4:
                 target=edge["target"],
             )
         )
-    config = Config(width=750,
-                    height=950,
+    config = Config(width=900,
+                    height=1000,
                     directed=True,
                     physics=True,
                     hierarchical=False,

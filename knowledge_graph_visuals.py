@@ -39,7 +39,9 @@ def get_graph_dfs(df, comments, post_id, user_df, d=2):
     post_df.drop_duplicates(subset="_id", inplace=True)
     comment_df.drop_duplicates(subset="_id", inplace=True)
     post_authors = post_df.explode("authors")["authors"].unique()
-    relevant_user_df = user_df[user_df["display_name"].isin(post_authors)]
+    post_user_df = user_df[user_df["display_name"].isin(post_authors)]
+    comment_user_df = user_df[user_df["user_id"].isin(comment_df["author_id"].unique())]
+    relevant_user_df = pd.concat([post_user_df, comment_user_df])
     relevant_user_df = relevant_user_df.drop_duplicates(subset="user_id")
     return post_df, comment_df, relevant_user_df
 
