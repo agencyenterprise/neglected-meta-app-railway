@@ -285,7 +285,9 @@ def get_raw_graph(df, comments, post_id, user_df, d=2):
 
 with tab4:
     st.write("Knowledge Graph")
-    raw_nodes, raw_edges = get_raw_graph(df, comments, "qAdDzcBuDBLexb4fC", user_df, d=1)
+    a_name = st.selectbox("Select a post to explore", article_names)
+    post_id = df[df["title"] == a_name]["_id"].values[0]
+    raw_nodes, raw_edges = get_raw_graph(df, comments, post_id, user_df, d=1)
     nodes = []
     edges = []
     STANDARD_SIZE = 25
