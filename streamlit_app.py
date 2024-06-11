@@ -1,8 +1,7 @@
 import pandas as pd
 from utils import quantile_transformation, prepare_concept_for_request
-from load import LessWrongData  # , LWCounts
 import streamlit as st
-from streamlit_agraph import agraph, Node, Edge, Config
+from streamlit_agraph import agraph, Node, Edge, Config, ConfigBuilder
 from specter_cluster_viz import create_viz
 from cav_calc import compare_authors, batch_author_similarity_score
 from sentence_transformers import util
@@ -11,6 +10,7 @@ import json
 import numpy as np
 import os
 from Google import create_and_download_files
+from knowledge_graph_visuals import build_graph
 
 create_and_download_files()
 specter_embeddings = torch.load("app_files/specter_embeddings.pt")
@@ -18,14 +18,25 @@ style_embeddings = torch.load("app_files/style_embeddings.pt")
 top_100_embeddings = torch.load("app_files/top_100_embeddings.pt")
 
 app_info: pd.DataFrame = pd.read_json("app_files/app_info_enhanced.jsonl", lines=True)
-lwd = LessWrongData()
-df = lwd.lw_df()
+comments = pd.read_parquet("app_files/lw_comments.parquet")
+df = pd.read_parquet("app_files/lw_data.parquet")
+user_df = pd.read_parquet("app_files/users.parquet")
 df.fillna("", inplace=True)
 df["articles_id"] = df.index
+
 with open("app_files/authors.json", "r") as f:
     author_name_list = json.load(f)
+
 with open("app_files/titles.json", "r") as f:
     article_names = json.load(f)
+
+STANDARD_SIZE = 25
+df["dot_size"] = (df["karma"] - df["karma"].min()) / (
+    df["karma"].max() - df["karma"].min()
+) * STANDARD_SIZE + 10
+user_df["dot_size"] = (user_df["karma"] - user_df["karma"].min()) / (
+    user_df["karma"].max() - user_df["karma"].min()
+) * STANDARD_SIZE + 10
 
 
 def custom_sort(columns, ascendings, head_n=5, truncate=False):
@@ -42,7 +53,9 @@ def custom_sort(columns, ascendings, head_n=5, truncate=False):
     return app_info.sort_values(columns, ascending=ascendings)[show_columns]
 
 
-tab1, tab2, tab3, tab4 = st.tabs(["DataFrame", "Similarity Score", "SPECTER Clustering", "Knowledge Graph"])
+tab1, tab2, tab3, tab4 = st.tabs(
+    ["DataFrame", "Similarity Score", "SPECTER Clustering", "Connected Posts"]
+)
 
 with tab1:
     score_options = st.multiselect(
@@ -118,7 +131,10 @@ with tab1:
             agree = []
 
         n = st.number_input("How many rows to show?", 5, 100, 5)
-        truncate = st.checkbox(f"Truncate to only the top {n} rows?\n This will limit how many categories you can see and interact with.", True)
+        truncate = st.checkbox(
+            f"Truncate to only the top {n} rows?\n This will limit how many categories you can see and interact with.",
+            True,
+        )
     filtered_df = custom_sort(options, agree, n, truncate=truncate)
     st.write(filtered_df)
     st.write("This is a small subset of the data based on your search criteria.")
@@ -127,7 +143,7 @@ with tab1:
 with tab2:
     with st.expander("❓ What's this?"):
         st.caption(
-        """
+            """
         We use the a model that generates embeddings based on the style of a text.
         Most authorship verification models are based on the content of writing; however,
         thanks to the model by Anna Wegmann and team, we can create content-independent embeddings.
@@ -165,25 +181,27 @@ with tab2:
     author_pair2 = st.multiselect("Select second set of to compare", author_name_list)
     if author_pair1 and author_pair2:
         st.markdown(f"Similarity score between `{author_pair1}` and `{author_pair2}`")
-        st.write(compare_authors([author_pair1, author_pair2], df, style_embeddings)[0][0])
+        st.write(
+            compare_authors([author_pair1, author_pair2], df, style_embeddings)[0][0]
+        )
     else:
         st.write("Please make your selection")
     article_list = st.multiselect("Select articles to compare", article_names)
     if article_list:
         default_authors = [
-                "Eliezer Yudkowsky",
-                "beren",
-                "habryka",
-                "gwern",
-                "Kaj_Sotala",
-                "Scott Alexander",
-                "Wei Dai",
-                "Zvi",
-                "lukeprog",
-                "NancyLebovitz",
-                "gjm",
-                "Vladimir_Nesov",
-            ]
+            "Eliezer Yudkowsky",
+            "beren",
+            "habryka",
+            "gwern",
+            "Kaj_Sotala",
+            "Scott Alexander",
+            "Wei Dai",
+            "Zvi",
+            "lukeprog",
+            "NancyLebovitz",
+            "gjm",
+            "Vladimir_Nesov",
+        ]
         compared_authors = st.multiselect(
             "Select authors to compare",
             author_name_list,
@@ -191,13 +209,18 @@ with tab2:
         )
         labels = [a for a in compared_authors]
         labels.append("Top 10 Authors")
-        compared_authors = [[a] for a in compared_authors] + [[a for a in default_authors if a != "beren"]]
+        compared_authors = [[a] for a in compared_authors] + [
+            [a for a in default_authors if a != "beren"]
+        ]
 
         article_idx = np.where(df["title"].isin(article_list))[0]
         sim_scores_tensor, top_100_score = batch_author_similarity_score(
-                [a for a in compared_authors], df, style_embeddings, top_100_embedding=top_100_embeddings
-            )
-        sim_scores = torch.mean(sim_scores_tensor[:, article_idx].T, axis = 0)
+            [a for a in compared_authors],
+            df,
+            style_embeddings,
+            top_100_embedding=top_100_embeddings,
+        )
+        sim_scores = torch.mean(sim_scores_tensor[:, article_idx].T, axis=0)
         top_100_score = torch.mean(top_100_score)
         output_text = "|Author|Cosine Similarity|\n|---|---|\n"
         for label, sim in zip(labels, sim_scores):
@@ -216,7 +239,7 @@ with tab3:
     st.write("SPECTER Clustering")
     with st.expander("❓ What's this?"):
         st.caption(
-        """
+            """
         We use the AllenAI SPECTER model which is a
         pretrained model that generates embeddings for text.
         This uses the embeddings generated for the concepts based on the combination of titles and abstracts.
@@ -229,12 +252,20 @@ with tab3:
         It will be printed below the selection.
         """
         )
-    cluster_choice = st.number_input("Which cluster would you like to explore?", 0, n-1, 0)
-    select_by_content = st.selectbox("Select by content", app_info["text"].to_list(),None)
-    fig, df_with_clusters, cluster_choice = create_viz(app_info, n, specter_embeddings, cluster_choice, select_by_content)
+    cluster_choice = st.number_input(
+        "Which cluster would you like to explore?", 0, n - 1, 0
+    )
+    select_by_content = st.selectbox(
+        "Select by content", app_info["text"].to_list(), None
+    )
+    fig, df_with_clusters, cluster_choice = create_viz(
+        app_info, n, specter_embeddings, cluster_choice, select_by_content
+    )
 
     st.plotly_chart(fig)
-    df_cluster = df_with_clusters[df_with_clusters["cluster_labels"] == cluster_choice].reset_index(drop=True)
+    df_cluster = df_with_clusters[
+        df_with_clusters["cluster_labels"] == cluster_choice
+    ].reset_index(drop=True)
     for i, row in df_cluster.iterrows():
         st.write(f"Concept {i}")
         st.html(row["text"])
@@ -242,64 +273,114 @@ with tab3:
         st.write(row["definition"])
         st.write("Articles")
         row_titles = df[df["articles_id"].isin(row["article_ids"])]["title"].to_list()
-        for article, url in zip(row_titles,row["urls"]):
+        for article, url in zip(row_titles, row["urls"]):
             st.markdown(f"[{article}]({url})")
         st.write(f'Total Comments: {row["comments_total"]}')
         st.write(f'Total Karma: {row["karma_total"]}')
         st.write(f'Logistic Regression Score: {row["lr_stats"]}')
         st.write("----")
-
+@st.cache_data
+def get_raw_graph(df, comments, post_id, user_df, d=2):
+    return build_graph(df, comments, post_id, user_df, depth=d)
 
 with tab4:
-    st.write("Knowledge Graph")        
+    st.write("Knowledge Graph")
+    raw_nodes, raw_edges = get_raw_graph(df, comments, "qAdDzcBuDBLexb4fC", user_df, d=1)
     nodes = []
     edges = []
-    nodes.append( Node(id="Marvel", 
-                    label="foobar", 
-                    size=25, 
-                    shape="circularImage",
-                    image="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/Marvel_Logo.svg/2560px-Marvel_Logo.svg.png") 
-                ) # includes **kwargs
-    nodes.append( Node(id="https://en.wikipedia.org/wiki/Spider", 
-                    label="Peter Parker", 
-                    size=25, 
-                    shape="circularImage",
-                    link="https://en.wikipedia.org/wiki/Spider",
-                    image="http://marvel-force-chart.surge.sh/marvel_force_chart_img/top_spiderman.png") 
-                ) # includes **kwargs
-    nodes.append( Node(id="https://en.wikipedia.org/wiki/Captain_Marvel_(film)", 
-                    label="Captain Marvel", 
-                    size=25,
-                    shape="circularImage",
-                    link="https://en.wikipedia.org/wiki/Spider",
-                    image="http://marvel-force-chart.surge.sh/marvel_force_chart_img/top_captainmarvel.png") 
+    STANDARD_SIZE = 25
+    print("creating nodes")
+    for node in raw_nodes:
+        if node["type"] == "post":
+            nodes.append(
+                Node(
+                    id=node["id"],
+                    label=node["label"],
+                    title=node["url"],
+                    size=node["size"],
+                    type=node["type"],
+                    color="blue",
                 )
-    edges.append( Edge(source="https://en.wikipedia.org/wiki/Captain_Marvel_(film)", 
-                    label="belongs_to", 
-                    target="Marvel", 
-                    # **kwargs
-                    ) 
-                ) 
-    edges.append( Edge(source="https://en.wikipedia.org/wiki/Spider", 
-                    label="friends_with", 
-                    target="https://en.wikipedia.org/wiki/Captain_Marvel_(film)", 
-                    # **kwargs
-                    ) 
-                ) 
-
+            )
+        elif node["type"] == "user":
+            nodes.append(
+                Node(
+                    id=node["id"],
+                    label=node["label"],
+                    title=node["url"],
+                    size=node["size"],
+                    type=node["type"],
+                    color="green",
+                )
+            )
+        else:
+            nodes.append(
+                Node(
+                    id=node["id"],
+                    # label=node["label"],
+                    title=node["url"],
+                    size=STANDARD_SIZE,
+                    type=node["type"],
+                    color="orange",
+                )
+            )
+    print("creating edges")
+    for edge in raw_edges:
+        edges.append(
+            Edge(
+                source=edge["source"],
+                label=edge["label"],
+                target=edge["target"],
+            )
+        )
     config = Config(width=750,
                     height=950,
-                    directed=True, 
-                    physics=True, 
+                    directed=True,
+                    physics=True,
                     hierarchical=False,
                     node={'labelProperty':'label'},
-                    # link={'labelProperty': 'link', 'renderLabel': True}
+                    link={'labelProperty': 'label', 'renderLabel': True}
                     # **kwargs
                     )
+    # config_builder = ConfigBuilder(nodes)
+    print("here's a graph")
+    # config = config_builder.build()
+    return_value = agraph(nodes=nodes, edges=edges, config=config)
+    print("foo")
+    # nodes.append( Node(id="Marvel",
+    #                 label="foobar",
+    #                 size=25,
+    #                 shape="circularImage",
+    #                 image="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/Marvel_Logo.svg/2560px-Marvel_Logo.svg.png")
+    #             ) # includes **kwargs
+    # nodes.append( Node(id="Spiderman",
+    #                 label="Peter Parker",
+    #                 title="https://en.wikipedia.org/wiki/Spider",
+    #                 size=25,
+    #                 shape="circularImage",
+    #                 link="https://en.wikipedia.org/wiki/Spider",
+    #                 image="http://marvel-force-chart.surge.sh/marvel_force_chart_img/top_spiderman.png")
+    #             ) # includes **kwargs
+    # nodes.append( Node(id="https://en.wikipedia.org/wiki/Captain_Marvel_(film)",
+    #                 label="Captain Marvel",
+    #                 size=25,
+    #                 shape="circularImage",
+    #                 link="https://en.wikipedia.org/wiki/Spider",
+    #                 image="http://marvel-force-chart.surge.sh/marvel_force_chart_img/top_captainmarvel.png")
+    #             )
+    # edges.append( Edge(source="Spiderman",
+    #                 label="belongs_to",
+    #                 target="Marvel",
+    #                 # **kwargs
+    #                 )
+    #             )
+    # edges.append( Edge(source="https://en.wikipedia.org/wiki/Spider",
+    #                 label="friends_with",
+    #                 target="https://en.wikipedia.org/wiki/Captain_Marvel_(film)",
+    #                 # **kwargs
+    #                 )
+    #             )
 
-    return_value = agraph(nodes=nodes, 
-                        edges=edges, 
-                        config=config)
-    st.write("This is a work in progress. We are working on generating a knowledge graph that will allow you to explore the relationships between concepts.")
-    st.write("Please check back later for updates.")
-    st.write("If you have any questions or suggestions please reach out to us at the LessWrong Discord server.")
+    # st.write("This is a work in progress. We are working on generating a knowledge graph that will allow you to explore the relationships between concepts.")
+    # st.write("Please check back later for updates.")
+    # st.write("If you have any questions or suggestions please reach out to us at the LessWrong Discord server.")

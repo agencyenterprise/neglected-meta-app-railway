@@ -41,13 +41,12 @@ def create_and_download_files():
                 f,
             )
     # check to see if the files are already downloaded
-    if os.path.exists("app_files") and os.path.exists("lw_data"):
+    if os.path.exists("app_files"):
         return
     file_ids = [
-        "1cyyNMD5wj53mc_cMLfL8VoTHVWDdO1Z7",
-        "1nfiT_8YptIsTobWewZ--miOOYdOgSu-O",
+        "1cyyNMD5wj53mc_cMLfL8VoTHVWDdO1Z7"
     ]
-    file_paths = ["app_files.zip", "lw_data.zip"]
+    file_paths = ["app_files.zip"]
     download_files(file_ids, file_paths)
     for fp in file_paths:
         shutil.unpack_archive(
