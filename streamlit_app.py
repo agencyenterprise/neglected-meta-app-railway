@@ -1,8 +1,8 @@
 import pandas as pd
-from tqdm.notebook import tqdm
 from utils import quantile_transformation, prepare_concept_for_request
 from load import LessWrongData  # , LWCounts
 import streamlit as st
+from streamlit_agraph import agraph, Node, Edge, Config
 from specter_cluster_viz import create_viz
 from cav_calc import compare_authors, batch_author_similarity_score
 from sentence_transformers import util
@@ -11,8 +11,6 @@ import json
 import numpy as np
 import os
 from Google import create_and_download_files
-
-tqdm.pandas()
 
 create_and_download_files()
 specter_embeddings = torch.load("app_files/specter_embeddings.pt")
@@ -44,7 +42,7 @@ def custom_sort(columns, ascendings, head_n=5, truncate=False):
     return app_info.sort_values(columns, ascending=ascendings)[show_columns]
 
 
-tab1, tab2, tab3 = st.tabs(["DataFrame", "Similarity Score", "SPECTER Clustering"])
+tab1, tab2, tab3, tab4 = st.tabs(["DataFrame", "Similarity Score", "SPECTER Clustering", "Knowledge Graph"])
 
 with tab1:
     score_options = st.multiselect(
@@ -250,3 +248,58 @@ with tab3:
         st.write(f'Total Karma: {row["karma_total"]}')
         st.write(f'Logistic Regression Score: {row["lr_stats"]}')
         st.write("----")
+
+
+with tab4:
+    st.write("Knowledge Graph")        
+    nodes = []
+    edges = []
+    nodes.append( Node(id="Marvel", 
+                    label="foobar", 
+                    size=25, 
+                    shape="circularImage",
+                    image="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/Marvel_Logo.svg/2560px-Marvel_Logo.svg.png") 
+                ) # includes **kwargs
+    nodes.append( Node(id="https://en.wikipedia.org/wiki/Spider", 
+                    label="Peter Parker", 
+                    size=25, 
+                    shape="circularImage",
+                    link="https://en.wikipedia.org/wiki/Spider",
+                    image="http://marvel-force-chart.surge.sh/marvel_force_chart_img/top_spiderman.png") 
+                ) # includes **kwargs
+    nodes.append( Node(id="https://en.wikipedia.org/wiki/Captain_Marvel_(film)", 
+                    label="Captain Marvel", 
+                    size=25,
+                    shape="circularImage",
+                    link="https://en.wikipedia.org/wiki/Spider",
+                    image="http://marvel-force-chart.surge.sh/marvel_force_chart_img/top_captainmarvel.png") 
+                )
+    edges.append( Edge(source="https://en.wikipedia.org/wiki/Captain_Marvel_(film)", 
+                    label="belongs_to", 
+                    target="Marvel", 
+                    # **kwargs
+                    ) 
+                ) 
+    edges.append( Edge(source="https://en.wikipedia.org/wiki/Spider", 
+                    label="friends_with", 
+                    target="https://en.wikipedia.org/wiki/Captain_Marvel_(film)", 
+                    # **kwargs
+                    ) 
+                ) 
+
+    config = Config(width=750,
+                    height=950,
+                    directed=True, 
+                    physics=True, 
+                    hierarchical=False,
+                    node={'labelProperty':'label'},
+                    # link={'labelProperty': 'link', 'renderLabel': True}
+                    # **kwargs
+                    )
+
+    return_value = agraph(nodes=nodes, 
+                        edges=edges, 
+                        config=config)
+    st.write("This is a work in progress. We are working on generating a knowledge graph that will allow you to explore the relationships between concepts.")
+    st.write("Please check back later for updates.")
+    st.write("If you have any questions or suggestions please reach out to us at the LessWrong Discord server.")

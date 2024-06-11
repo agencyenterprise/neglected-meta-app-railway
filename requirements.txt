@@ -21,7 +21,6 @@ charset-normalizer==3.3.2
 click==8.1.7
 contourpy==1.2.1
 cycler==0.12.1
-dash-cytoscape==0.2.0
 dataclasses-json==0.6.5
 deap==1.4.1
 debugpy==1.8.1
@@ -168,6 +167,7 @@ SQLAlchemy==2.0.29
 stack-data==0.6.3
 stopit==1.1.2
 streamlit==1.34.0
+streamlit-agraph==0.0.45
 striprtf==0.0.26
 sympy==1.12
 tables==3.9.2
