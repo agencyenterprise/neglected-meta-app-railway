@@ -1,5 +1,5 @@
 from flask import Flask, jsonify, request
-from enpoints import endpoint_dataframe, endpoint_similarity_score, endpoint_author_similarity_score, endpoint_specter_clustering;
+from enpoints import endpoint_dataframe, endpoint_similarity_score, endpoint_author_similarity_score, endpoint_specter_clustering, endpoint_connected_posts;
 
 app = Flask(__name__)
 
@@ -16,9 +16,7 @@ def get_dataframe():
             columns.append(name)
             ascendings.append(value[0] == 'asc')
 
-
-    data = endpoint_dataframe(columns, ascendings)
-    return jsonify(data)
+    return jsonify(endpoint_dataframe(columns, ascendings))
 
 @app.route('/api/similarity-score', methods=['GET'])
 def get_similarity_score():
@@ -41,11 +39,13 @@ def get_specter_clustering():
     n = int(request.args.get('cluster_count'))
     cluster_choice = int(request.args.get('cluster'))
     select_by_content = request.args.get('content')
+    return jsonify(endpoint_specter_clustering(n, cluster_choice, select_by_content))
 
-    data = endpoint_specter_clustering(n, cluster_choice, select_by_content)
-
-    return jsonify(data)
-
+@app.route('/api/connected-posts', methods=['GET'])
+def get_connected_posts():
+    depth = int(request.args.get('depth'))
+    a_name = request.args.get('a_name')
+    return jsonify(endpoint_connected_posts(a_name, depth))
 
 if __name__ == '__main__':
     app.run(port=5000, debug=True)

@@ -76,6 +76,9 @@ def convert_ndarrays_to_lists(obj):
     else:
         return obj
 
+def get_raw_graph(df, comments, post_id, user_df, d=2):
+    return build_graph(df, comments, post_id, user_df, depth=d)
+
 ###################################################################################################
 ###################################################################################################
 ###################################################################################################
@@ -172,4 +175,15 @@ def endpoint_specter_clustering(n, cluster_choice, select_by_content):
     return {
         'fig': fig_json,
         'contents': df_cluster_output,
+    }
+
+
+def endpoint_connected_posts(a_name, depth):
+    post_id = df[df["title"] == a_name]["_id"].values[0]
+
+    raw_nodes, raw_edges = get_raw_graph(df, comments, post_id, user_df, d=depth)
+
+    return {
+        'nodes': raw_nodes,
+        'edges': raw_edges,
     }
