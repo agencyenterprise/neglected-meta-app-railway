@@ -71,3 +71,52 @@ def custom_sort(columns, ascendings, head_n=5, truncate=False):
 def endpoint_dataframe(columns, ascendings):
     data = custom_sort(columns, ascendings)
     return data.to_dict(orient='records')
+
+
+def endpoint_similarity_score(article_list, compared_authors):
+    default_authors = [
+        "Eliezer Yudkowsky",
+        "beren",
+        "habryka",
+        "gwern",
+        "Kaj_Sotala",
+        "Scott Alexander",
+        "Wei Dai",
+        "Zvi",
+        "lukeprog",
+        "NancyLebovitz",
+        "gjm",
+        "Vladimir_Nesov",
+    ]
+
+    labels = [a for a in compared_authors]
+    labels.append("Top 10 Authors")
+
+    compared_authors = [[a] for a in compared_authors] + [
+        [a for a in default_authors if a != "beren"]
+    ]
+
+    article_idx = np.where(df["title"].isin(article_list))[0]
+ 
+    sim_scores_tensor, top_100_score = batch_author_similarity_score(
+        [a for a in compared_authors],
+        df,
+        style_embeddings,
+        top_100_embedding=top_100_embeddings,
+    )
+
+    sim_scores = torch.mean(sim_scores_tensor[:, article_idx].T, axis=0)
+    top_100_score = torch.mean(top_100_score)
+
+    output = []
+
+    for label, sim in zip(labels, sim_scores):
+        output.append({ 'author': label, 'sim': f"{sim:.2f}" })
+
+    output.append({ 'author': 'Top 100 Authors', 'sim': f"{top_100_score:.2f}" })
+
+    return output
+
+
+def endpoint_author_similarity_score(author_pair1, author_pair2):
+    return compare_authors([author_pair1, author_pair2], df, style_embeddings)[0][0]
