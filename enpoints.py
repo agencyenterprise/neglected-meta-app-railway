@@ -60,7 +60,21 @@ def custom_sort(columns, ascendings, head_n=5, truncate=False):
 
 
 
+###################################################################################################
+###################################################################################################
+###################################################################################################
+###################################################################################################
+###################################################################################################
 
+def convert_ndarrays_to_lists(obj):
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, dict):
+        return {k: convert_ndarrays_to_lists(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_ndarrays_to_lists(i) for i in obj]
+    else:
+        return obj
 
 ###################################################################################################
 ###################################################################################################
@@ -120,3 +134,42 @@ def endpoint_similarity_score(article_list, compared_authors):
 
 def endpoint_author_similarity_score(author_pair1, author_pair2):
     return compare_authors([author_pair1, author_pair2], df, style_embeddings)[0][0]
+
+def endpoint_specter_clustering(n, cluster_choice, select_by_content):
+    fig, df_with_clusters, cluster_choice = create_viz(
+        app_info, n, specter_embeddings, cluster_choice, select_by_content
+    )
+
+    fig_json = [convert_ndarrays_to_lists(scatter.to_plotly_json()) for scatter in fig]
+
+    df_cluster = df_with_clusters[
+        df_with_clusters["cluster_labels"] == cluster_choice
+    ].reset_index(drop=True)
+
+    df_cluster_output = [];
+
+    for i, row in df_cluster.iterrows():
+            
+            articles = []
+
+            row_titles = df[df["articles_id"].isin(row["article_ids"])]["title"].to_list()
+            for article, url in zip(row_titles, row["urls"]):
+                articles.append({
+                    'article': article,
+                    'url': url,
+                })
+
+            df_cluster_output.append({
+                'index': i,
+                'text': row["text"],
+                'definition': row["definition"],
+                'comments_total': row["comments_total"],
+                'karma_total': row["karma_total"],
+                'lr_stats': row["lr_stats"],
+                'articles': articles,
+            })
+
+    return {
+        'fig': fig_json,
+        'contents': df_cluster_output,
+    }

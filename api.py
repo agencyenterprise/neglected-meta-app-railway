@@ -1,5 +1,5 @@
 from flask import Flask, jsonify, request
-from enpoints import endpoint_dataframe, endpoint_similarity_score, endpoint_author_similarity_score;
+from enpoints import endpoint_dataframe, endpoint_similarity_score, endpoint_author_similarity_score, endpoint_specter_clustering;
 
 app = Flask(__name__)
 
@@ -35,6 +35,16 @@ def get_similarity_score():
         ).tolist(),
         'articles': endpoint_similarity_score(article_list, compared_authors)
     })
+
+@app.route('/api/specter-clustering', methods=['GET'])
+def get_specter_clustering():
+    n = int(request.args.get('cluster_count'))
+    cluster_choice = int(request.args.get('cluster'))
+    select_by_content = request.args.get('content')
+
+    data = endpoint_specter_clustering(n, cluster_choice, select_by_content)
+
+    return jsonify(data)
 
 
 if __name__ == '__main__':
