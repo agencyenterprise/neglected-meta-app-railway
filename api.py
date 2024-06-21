@@ -3,6 +3,9 @@ from enpoints import endpoint_dataframe, endpoint_similarity_score, endpoint_aut
 
 app = Flask(__name__)
 
+def is_array_empty(array):
+    return array is None or len(array) == 0
+
 @app.route('/api/authors', methods=['GET'])
 def get_authors():
     return jsonify({
@@ -38,12 +41,17 @@ def get_similarity_score():
     author_pair1 = params.get('author_pair1[]')
     author_pair2 = params.get('author_pair2[]')
 
+    articles_result = []
+
+    if(is_array_empty(article_list) == False):
+        articles_result = endpoint_similarity_score(article_list, compared_authors)
+
     return jsonify({
         'authors': endpoint_author_similarity_score(
             author_pair1,
             author_pair2
         ).tolist(),
-        'articles': endpoint_similarity_score(article_list, compared_authors)
+        'articles': articles_result
     })
 
 @app.route('/api/specter-clustering', methods=['GET'])
