@@ -128,9 +128,9 @@ def endpoint_similarity_score(article_list, compared_authors):
     output = []
 
     for label, sim in zip(labels, sim_scores):
-        output.append({ 'author': label, 'sim': f"{sim:.2f}" })
+        output.append({ 'author': label, 'score': f"{sim:.2f}" })
 
-    output.append({ 'author': 'Top 100 Authors', 'sim': f"{top_100_score:.2f}" })
+    output.append({ 'author': 'Top 100 Authors', 'score': f"{top_100_score:.2f}" })
 
     return output
 
