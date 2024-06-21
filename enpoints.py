@@ -193,3 +193,6 @@ def endpoint_get_authors():
 
 def endpoint_get_articles():
     return article_names
+
+def endpoint_get_content():
+    return app_info["text"].to_list()
