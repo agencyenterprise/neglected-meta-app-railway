@@ -1,7 +1,19 @@
 from flask import Flask, jsonify, request
-from enpoints import endpoint_dataframe, endpoint_similarity_score, endpoint_author_similarity_score, endpoint_specter_clustering, endpoint_connected_posts;
+from enpoints import endpoint_dataframe, endpoint_similarity_score, endpoint_author_similarity_score, endpoint_specter_clustering, endpoint_connected_posts, endpoint_get_authors, endpoint_get_articles;
 
 app = Flask(__name__)
+
+@app.route('/api/authors', methods=['GET'])
+def get_authors():
+    return jsonify({
+        'data': endpoint_get_authors()
+    })
+
+@app.route('/api/articles', methods=['GET'])
+def get_articles():
+    return jsonify({
+        'data': endpoint_get_articles()
+    })
 
 @app.route('/api/dataframe', methods=['GET'])
 def get_dataframe():

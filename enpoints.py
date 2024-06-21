@@ -187,3 +187,9 @@ def endpoint_connected_posts(a_name, depth):
         'nodes': raw_nodes,
         'edges': raw_edges,
     }
+
+def endpoint_get_authors():
+    return author_name_list
+
+def endpoint_get_articles():
+    return article_names
