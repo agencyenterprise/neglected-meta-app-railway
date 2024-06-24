@@ -33,12 +33,16 @@ def get_dataframe():
     ascendings = []
 
     for key, value in params.items():
-        if key.startswith('column[') and key.endswith(']'):
-            name = key[7:-1]
+        if key.startswith('columns[') and key.endswith(']'):
+            name = key[8:-1]
             columns.append(name)
             ascendings.append(value[0] == 'asc')
 
-    return jsonify(endpoint_dataframe(columns, ascendings))
+    try:
+        data = endpoint_dataframe(columns, ascendings)
+        return jsonify(data)
+    except:
+        return []
 
 @app.route('/api/similarity-score', methods=['GET'])
 def get_similarity_score():
