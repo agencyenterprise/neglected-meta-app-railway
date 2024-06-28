@@ -179,7 +179,15 @@ def endpoint_specter_clustering(n, cluster_choice, select_by_content):
 
 
 def endpoint_connected_posts(a_name, depth):
-    post_id = df[df["title"] == a_name]["_id"].values[0]
+    filtered = df[df["title"].str.strip() == a_name]
+
+    if not filtered.empty:
+        post_id = filtered["_id"].values[0]
+    else:
+        return {
+            'nodes': [],
+            'edges': [],
+        }
 
     raw_nodes, raw_edges = get_raw_graph(df, comments, post_id, user_df, d=depth)
 
