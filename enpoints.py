@@ -113,7 +113,7 @@ def endpoint_similarity_score(article_list, compared_authors):
         [a for a in default_authors if a != "beren"]
     ]
 
-    article_idx = np.where(df["title"].isin(article_list))[0]
+    article_idx = np.where(df["title"].str.strip().isin(article_list))[0]
  
     sim_scores_tensor, top_100_score = batch_author_similarity_score(
         [a for a in compared_authors],
