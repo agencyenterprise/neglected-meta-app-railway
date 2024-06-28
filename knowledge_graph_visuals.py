@@ -58,6 +58,8 @@ def build_graph(df, comments, post_id, user_df, depth=2):
             "type": "post",
             "size": row["dot_size"],
             "upvoteCount": row["upvoteCount"],
+            "karma": row["karma"],
+            "commentCount": row["commentCount"],
             "url": row["url"]
         })
     print("Step 2/5: Creating references edges")
@@ -77,6 +79,7 @@ def build_graph(df, comments, post_id, user_df, depth=2):
             "post_count": row["post_count"],
             "comment_count": row["comment_count"],
             "size": row["dot_size"],
+            "karma": row["karma"],
             "url": "https://lesswrong.com/users/" + row["slug"]
         })
     print("Step 4/7: Creating authorship edges")
