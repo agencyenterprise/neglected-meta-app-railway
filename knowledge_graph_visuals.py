@@ -3,8 +3,12 @@ import tqdm
 def load_post_centroid(df, comments, post_id, pingback=True):
     main_post = df[df["_id"] == post_id]
     if pingback:
+        if len(main_post["pingback_posts"].values) == 0:
+            return pd.DataFrame(), pd.DataFrame()
         linked_articles = main_post["pingback_posts"].values[0]
     else:
+        if len(main_post["references"].values) == 0:
+            return pd.DataFrame(), pd.DataFrame()
         linked_articles = main_post["references"].values[0]
     linked_posts = df[df["_id"].isin(linked_articles)]
     new_df = pd.concat([main_post, linked_posts])
@@ -16,17 +20,30 @@ def get_references_tree(df, comments, post_id, depth=1, pingback=True):
     visited = set()
     references = []
     comms = []
+
     for i in range(depth):
         new_queue = []
-        for post_id in queue:
-            if post_id in visited:
+        for current_post_id in queue:
+            if current_post_id in visited:
                 continue
-            visited.add(post_id)
-            post_df, comm_df = load_post_centroid(df, comments, post_id, pingback=pingback)
+            visited.add(current_post_id)
+
+            post_df, comm_df = load_post_centroid(df, comments, current_post_id, pingback=pingback)
+
+            if post_df.empty:
+                continue  # Skip if the post is not found
+
             references.append(post_df)
             comms.append(comm_df)
-            new_queue.extend(post_df["pingback_posts"].values[0])
+
+            # Add the next level of references and pingback posts to the queue
+            if len(post_df["pingback_posts"].values) > 0:
+                new_queue.extend(post_df["pingback_posts"].values[0])
+            if len(post_df["references"].values) > 0:
+                new_queue.extend(post_df["references"].values[0])
+
         queue = new_queue
+
     ref_df = pd.concat(references).drop_duplicates(subset="_id")
     comms_df = pd.concat(comms).drop_duplicates(subset="_id")
     return ref_df, comms_df
