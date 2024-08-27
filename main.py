@@ -1,4 +1,6 @@
+import os
 from flask import Flask, jsonify, request
+from utils import create_idea, list_ideas
 from enpoints import endpoint_dataframe, endpoint_similarity_score, endpoint_author_similarity_score, endpoint_specter_clustering, endpoint_connected_posts, endpoint_get_authors, endpoint_get_articles, endpoint_get_content
 
 app = Flask(__name__)
@@ -77,6 +79,35 @@ def get_connected_posts():
     depth = int(request.args.get('depth'))
     a_name = request.args.get('a_name')
     return jsonify(endpoint_connected_posts(a_name, depth))
+
+@app.route('/api/ideas', methods=['POST'])
+def create_new_idea():
+    data = request.json
+    article = data.get('article')
+    description = data.get('description')
+    email = data.get('email')
+
+    if not article or not description:
+        return jsonify({"error": "Article and description are required"}), 400
+
+    create_idea(article, description, email)
+    return jsonify({"message": "Idea created successfully"}), 201
+
+@app.route('/api/ideas', methods=['GET'])
+def get_ideas():
+    ideas = list_ideas()
+    ideas_list = [
+        {
+            "id": idea[0],
+            "article": idea[1],
+            "description": idea[2],
+            "email": idea[3],
+            "created_at": idea[4].isoformat()
+        }
+        for idea in ideas
+    ]
+    return jsonify(ideas_list)
+
 
 if __name__ == '__main__':
     app.run(port=5000, debug=True)
