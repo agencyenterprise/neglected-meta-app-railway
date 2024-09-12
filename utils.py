@@ -1,9 +1,11 @@
 import os
-from sklearn.preprocessing import QuantileTransformer
-import pandas as pd
-from urllib.parse import urlparse
-import psycopg2
 from datetime import datetime, timezone
+from urllib.parse import urlparse
+
+import pandas as pd
+import psycopg2
+from sklearn.preprocessing import QuantileTransformer
+
 
 def get_db_connection():
     # Get the database URL from the environment variable
@@ -24,34 +26,127 @@ def get_db_connection():
         raise Exception("DATABASE URL is not set in the environment variables")
 
 # Define the Idea model operations using psycopg2
-def create_idea(article, description, email=None):
+def create_idea(main_article, node_id, link, type, label, email=None, comment=None):
+    existing_idea = get_idea_by_node_id(node_id)
+    
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute(
-        """
-        INSERT INTO ideas (article, description, email, created_at)
-        VALUES (%s, %s, %s, %s)
-        """,
-        (article, description, email, datetime.now(timezone.utc))
-    )
+    
+    if existing_idea:
+        idea_id = existing_idea[0]
+        cur.execute(
+            """
+            UPDATE ideas
+            SET endorsement_count = endorsement_count + 1
+            WHERE id = %s
+            RETURNING endorsement_count
+            """,
+            (idea_id,)
+        )
+        new_count = cur.fetchone()[0]
+    else:
+        cur.execute(
+            """
+            INSERT INTO ideas (main_article, node_id, link, type, label, created_at, endorsement_count)
+            VALUES (%s, %s, %s, %s, %s, %s, 1)
+            RETURNING id, endorsement_count
+            """,
+            (main_article, node_id, link, type, label, datetime.now(timezone.utc))
+        )
+        idea_id, new_count = cur.fetchone()
+    
+    # Insert the endorsement only if email or comment is present
+    if email or comment:
+        cur.execute(
+            """
+            INSERT INTO idea_endorsements (idea_id, email, comment, created_at)
+            VALUES (%s, %s, %s, %s)
+            """,
+            (idea_id, email, comment, datetime.now(timezone.utc))
+        )
+    
     conn.commit()
     cur.close()
     conn.close()
+    return idea_id, new_count, existing_idea is not None
 
-def list_ideas():
+def get_idea_by_node_id(node_id):
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT id, article, description, email, created_at
+        SELECT id, main_article, node_id, link, type, label, created_at, endorsement_count
         FROM ideas
-        ORDER BY created_at DESC
-        """
+        WHERE node_id = %s
+        """,
+        (node_id,)
     )
+    idea = cur.fetchone()
+    cur.close()
+    conn.close()
+    return idea
+
+def get_endorsements_for_idea(idea_id):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT email, comment, created_at
+        FROM idea_endorsements
+        WHERE idea_id = %s
+        ORDER BY created_at DESC
+        """,
+        (idea_id,)
+    )
+    endorsements = cur.fetchall()
+    cur.close()
+    conn.close()
+    return endorsements
+
+def list_ideas(limit=10, last_endorsement_count=None, last_created_at=None, last_id=None):
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    if last_endorsement_count is not None and last_created_at and last_id:
+        cur.execute(
+            """
+            SELECT id, main_article, node_id, link, type, label, created_at, endorsement_count
+            FROM ideas
+            WHERE (endorsement_count, created_at, id) < (%s, %s, %s)
+            ORDER BY endorsement_count DESC, created_at DESC, id DESC
+            LIMIT %s
+            """,
+            (last_endorsement_count, last_created_at, last_id, limit + 1)
+        )
+    else:
+        cur.execute(
+            """
+            SELECT id, main_article, node_id, link, type, label, created_at, endorsement_count
+            FROM ideas
+            ORDER BY endorsement_count DESC, created_at DESC, id DESC
+            LIMIT %s
+            """,
+            (limit + 1,)
+        )
+
     ideas = cur.fetchall()
     cur.close()
     conn.close()
-    return ideas
+
+    has_next = len(ideas) > limit
+    ideas = ideas[:limit]
+
+    next_cursor = None
+    if has_next and ideas:
+        last_idea = ideas[-1]
+        next_cursor = f"{last_idea[7]}_{last_idea[6].isoformat()}_{last_idea[0]}"
+
+    ideas_with_endorsements = []
+    for idea in ideas:
+        endorsements = get_endorsements_for_idea(idea[0])
+        ideas_with_endorsements.append(idea + (endorsements,))
+
+    return ideas_with_endorsements, next_cursor
 
 def string_list_to_list(strlist):
     return [c.strip("'").strip('"') for c in strlist.strip("[]").split(", ")]
