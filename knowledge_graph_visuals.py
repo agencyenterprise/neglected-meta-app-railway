@@ -1,5 +1,10 @@
+import html
+import re
+
 import pandas as pd
 import tqdm
+
+
 def load_post_centroid(df, comments, post_id, pingback=True):
     main_post = df[df["_id"] == post_id]
     if pingback:
@@ -62,6 +67,9 @@ def get_graph_dfs(df, comments, post_id, user_df, d=2):
     relevant_user_df = relevant_user_df.drop_duplicates(subset="user_id")
     return post_df, comment_df, relevant_user_df
 
+def unescape_and_strip_html(text):
+    return html.unescape(re.sub(r'<[^>]*>', '', text)).strip()
+
 def build_graph(df, comments, post_id, user_df, depth=2):
     post_df, comment_df, relevant_user_df = get_graph_dfs(df, comments, post_id, user_df, d=depth)
     nodes = []
@@ -115,7 +123,7 @@ def build_graph(df, comments, post_id, user_df, depth=2):
     for i, row in tqdm.tqdm(comment_df.iterrows(), total=comment_df.shape[0]):
         nodes.append({
             "id": row["_id"],
-            # "label": row["htmlBody"],
+            "label": unescape_and_strip_html(row["htmlBody"]),
             "type": "comment",
             "url": "https://lesswrong.com/posts/" + row["postId"] + "/comments/" + row["_id"],
             # "upvoteCount": row["upvoteCount"]

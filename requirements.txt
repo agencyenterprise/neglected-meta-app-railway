@@ -105,3 +105,4 @@ uritemplate==4.1.1
 urllib3==2.2.1
 wcwidth==0.2.13
 Werkzeug==3.0.3
+psycopg2-binary==2.9.9
