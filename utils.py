@@ -26,127 +26,126 @@ def get_db_connection():
         raise Exception("DATABASE URL is not set in the environment variables")
 
 # Define the Idea model operations using psycopg2
-def create_idea(main_article, node_id, link, type, label, email=None, comment=None):
-    existing_idea = get_idea_by_node_id(node_id)
+def create_approach(main_article, node_id, link, type, label, email=None, comment=None):
+    existing_approach = get_approach_by_node_id(node_id)
     
     conn = get_db_connection()
     cur = conn.cursor()
     
-    if existing_idea:
-        idea_id = existing_idea[0]
+    if existing_approach:
+        approach_id = existing_approach[0]
         cur.execute(
             """
-            UPDATE ideas
-            SET endorsement_count = endorsement_count + 1
+            UPDATE approaches
+            SET spotlight_count = spotlight_count + 1
             WHERE id = %s
-            RETURNING endorsement_count
+            RETURNING spotlight_count
             """,
-            (idea_id,)
+            (approach_id,)
         )
         new_count = cur.fetchone()[0]
     else:
         cur.execute(
             """
-            INSERT INTO ideas (main_article, node_id, link, type, label, created_at, endorsement_count)
+            INSERT INTO approaches (main_article, node_id, link, type, label, created_at, spotlight_count)
             VALUES (%s, %s, %s, %s, %s, %s, 1)
-            RETURNING id, endorsement_count
+            RETURNING id, spotlight_count
             """,
             (main_article, node_id, link, type, label, datetime.now(timezone.utc))
         )
-        idea_id, new_count = cur.fetchone()
+        approach_id, new_count = cur.fetchone()
     
-    # Insert the endorsement only if email or comment is present
     if email or comment:
         cur.execute(
             """
-            INSERT INTO idea_endorsements (idea_id, email, comment, created_at)
+            INSERT INTO spotlights (approach_id, email, comment, created_at)
             VALUES (%s, %s, %s, %s)
             """,
-            (idea_id, email, comment, datetime.now(timezone.utc))
+            (approach_id, email, comment, datetime.now(timezone.utc))
         )
     
     conn.commit()
     cur.close()
     conn.close()
-    return idea_id, new_count, existing_idea is not None
+    return approach_id, new_count, existing_approach is not None
 
-def get_idea_by_node_id(node_id):
+def get_approach_by_node_id(node_id):
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT id, main_article, node_id, link, type, label, created_at, endorsement_count
-        FROM ideas
+        SELECT id, main_article, node_id, link, type, label, created_at, spotlight_count
+        FROM approaches
         WHERE node_id = %s
         """,
         (node_id,)
     )
-    idea = cur.fetchone()
+    approach = cur.fetchone()
     cur.close()
     conn.close()
-    return idea
+    return approach
 
-def get_endorsements_for_idea(idea_id):
+def get_spotlights_for_approach(approach_id):
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute(
         """
         SELECT email, comment, created_at
-        FROM idea_endorsements
-        WHERE idea_id = %s
+        FROM spotlights
+        WHERE approach_id = %s
         ORDER BY created_at DESC
         """,
-        (idea_id,)
+        (approach_id,)
     )
-    endorsements = cur.fetchall()
+    spotlights = cur.fetchall()
     cur.close()
     conn.close()
-    return endorsements
+    return spotlights
 
-def list_ideas(limit=10, last_endorsement_count=None, last_created_at=None, last_id=None):
+def list_approaches(limit=10, last_spotlight_count=None, last_created_at=None, last_id=None):
     conn = get_db_connection()
     cur = conn.cursor()
 
-    if last_endorsement_count is not None and last_created_at and last_id:
+    if last_spotlight_count is not None and last_created_at and last_id:
         cur.execute(
             """
-            SELECT id, main_article, node_id, link, type, label, created_at, endorsement_count
-            FROM ideas
-            WHERE (endorsement_count, created_at, id) < (%s, %s, %s)
-            ORDER BY endorsement_count DESC, created_at DESC, id DESC
+            SELECT id, main_article, node_id, link, type, label, created_at, spotlight_count
+            FROM approaches
+            WHERE (spotlight_count, created_at, id) < (%s, %s, %s)
+            ORDER BY spotlight_count DESC, created_at DESC, id DESC
             LIMIT %s
             """,
-            (last_endorsement_count, last_created_at, last_id, limit + 1)
+            (last_spotlight_count, last_created_at, last_id, limit + 1)
         )
     else:
         cur.execute(
             """
-            SELECT id, main_article, node_id, link, type, label, created_at, endorsement_count
-            FROM ideas
-            ORDER BY endorsement_count DESC, created_at DESC, id DESC
+            SELECT id, main_article, node_id, link, type, label, created_at, spotlight_count
+            FROM approaches
+            ORDER BY spotlight_count DESC, created_at DESC, id DESC
             LIMIT %s
             """,
             (limit + 1,)
         )
 
-    ideas = cur.fetchall()
+    approaches = cur.fetchall()
     cur.close()
     conn.close()
 
-    has_next = len(ideas) > limit
-    ideas = ideas[:limit]
+    has_next = len(approaches) > limit
+    approaches = approaches[:limit]
 
     next_cursor = None
-    if has_next and ideas:
-        last_idea = ideas[-1]
-        next_cursor = f"{last_idea[7]}_{last_idea[6].isoformat()}_{last_idea[0]}"
+    if has_next and approaches:
+        last_approach = approaches[-1]
+        next_cursor = f"{last_approach[7]}_{last_approach[6].isoformat()}_{last_approach[0]}"
 
-    ideas_with_endorsements = []
-    for idea in ideas:
-        endorsements = get_endorsements_for_idea(idea[0])
-        ideas_with_endorsements.append(idea + (endorsements,))
+    approaches_with_spotlights = []
+    for approach in approaches:
+        spotlights = get_spotlights_for_approach(approach[0])
+        approaches_with_spotlights.append(approach + (spotlights,))
 
-    return ideas_with_endorsements, next_cursor
+    return approaches_with_spotlights, next_cursor
 
 def string_list_to_list(strlist):
     return [c.strip("'").strip('"') for c in strlist.strip("[]").split(", ")]
