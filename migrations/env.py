@@ -18,22 +18,22 @@ if config.config_file_name is not None:
 # Define your tables here
 metadata = MetaData()
 
-ideas = Table(
-    'ideas', metadata,
+approaches = Table(
+    'approaches', metadata,
     Column('id', Integer, primary_key=True),
     Column('node_id', String),
     Column('created_at', DateTime, server_default=func.now()),
     Column('link', String, nullable=False),
     Column('label', String),
     Column('type', String, nullable=False),
-    Column('endorsement_count', Integer, server_default='0'),
+    Column('spotlight_count', Integer, server_default='0'),
     Column('main_article', String)
 )
 
-idea_endorsements = Table(
-    'idea_endorsements', metadata,
+spotlights = Table(
+    'spotlights', metadata,
     Column('id', Integer, primary_key=True),
-    Column('idea_id', Integer, ForeignKey('ideas.id')),
+    Column('approach_id', Integer, ForeignKey('approaches.id')),
     Column('email', String),
     Column('comment', String),
     Column('created_at', DateTime, server_default=func.now())

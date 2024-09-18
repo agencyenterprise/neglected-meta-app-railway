@@ -12,7 +12,7 @@ from enpoints import (endpoint_author_similarity_score,
                       endpoint_get_articles, endpoint_get_authors,
                       endpoint_get_content, endpoint_similarity_score,
                       endpoint_specter_clustering)
-from utils import create_idea, list_ideas
+from utils import create_approach, list_approaches
 
 app = Flask(__name__)
 
@@ -105,55 +105,55 @@ def get_connected_posts():
     a_name = request.args.get('a_name')
     return jsonify(endpoint_connected_posts(a_name, depth))
 
-@app.route('/api/ideas', methods=['GET'])
-def get_ideas():
+@app.route('/api/approaches', methods=['GET'])
+def get_approaches():
     limit = request.args.get('limit', default=10, type=int)
-    last_endorsement_count = request.args.get('lastEndorsementCount', type=int)
+    last_spotlight_count = request.args.get('lastSpotlightCount', type=int)
     last_created_at = request.args.get('lastCreatedAt')
     last_id = request.args.get('lastId', type=int)
 
     if last_created_at:
         last_created_at = datetime.fromisoformat(last_created_at)
 
-    ideas, next_cursor = list_ideas(limit, last_endorsement_count, last_created_at, last_id)
-    ideas_list = [
+    approaches, next_cursor = list_approaches(limit, last_spotlight_count, last_created_at, last_id)
+    approaches_list = [
         {
-            "id": idea[0],
-            "main_article": idea[1],
-            "node_id": idea[2],
-            "link": idea[3],
-            "type": idea[4],
-            "label": idea[5],
-            "created_at": idea[6].isoformat(),
-            "endorsement_count": idea[7],
-            "endorsements": [
+            "id": approach[0],
+            "main_article": approach[1],
+            "node_id": approach[2],
+            "link": approach[3],
+            "type": approach[4],
+            "label": approach[5],
+            "created_at": approach[6].isoformat(),
+            "spotlight_count": approach[7],
+            "spotlights": [
                 {
-                    "email": endorsement[0],
-                    "comment": endorsement[1],
-                    "created_at": endorsement[2].isoformat()
+                    "email": spotlight[0],
+                    "comment": spotlight[1],
+                    "created_at": spotlight[2].isoformat()
                 }
-                for endorsement in idea[8]
+                for spotlight in approach[8]
             ]
         }
-        for idea in ideas
+        for approach in approaches
     ]
 
     next_params = {}
     if next_cursor:
-        next_endorsement_count, next_created_at, next_id = next_cursor.split('_')
+        next_spotlight_count, next_created_at, next_id = next_cursor.split('_')
         next_params = {
-            'lastEndorsementCount': next_endorsement_count,
+            'lastSpotlightCount': next_spotlight_count,
             'lastCreatedAt': next_created_at,
             'lastId': next_id
         }
 
     return jsonify({
-        "ideas": ideas_list,
+        "approaches": approaches_list,
         "nextParams": next_params
     })
 
-@app.route('/api/ideas', methods=['POST'])
-def create_new_idea():
+@app.route('/api/approaches', methods=['POST'])
+def create_new_approach():
     data = request.json
     main_article = data.get('mainArticle')
     node_id = data.get('nodeId')
@@ -166,13 +166,13 @@ def create_new_idea():
     if not node_id or not link:
         return jsonify({"error": "Node ID and link are required"}), 400
 
-    idea_id, new_count, is_endorsement = create_idea(main_article, node_id, link, type, label, email, comment)
+    approach_id, new_count, is_spotlight = create_approach(main_article, node_id, link, type, label, email, comment)
     
     return jsonify({
         "success": True, 
-        "message": "Idea endorsed successfully" if is_endorsement else "Idea shared successfully",
-        "id": idea_id,
-        "endorsement_count": new_count
+        "message": "Approach spotlighted successfully" if is_spotlight else "Approach shared successfully",
+        "id": approach_id,
+        "spotlight_count": new_count
     }), 201
 
 if __name__ == '__main__':
