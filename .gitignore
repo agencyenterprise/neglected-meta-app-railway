@@ -8,3 +8,4 @@ secret*
 *.zip
 .env
 neglected-meta-analysis-lesswrong/
+venv/*
