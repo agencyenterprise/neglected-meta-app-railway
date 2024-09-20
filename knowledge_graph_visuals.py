@@ -68,7 +68,9 @@ def get_graph_dfs(df, comments, post_id, user_df, d=2):
     return post_df, comment_df, relevant_user_df
 
 def unescape_and_strip_html(text):
-    return html.unescape(re.sub(r'<[^>]*>', '', text)).strip()
+    if text is None:
+        return ""
+    return html.unescape(re.sub(r'<[^>]*>', '', str(text))).strip()
 
 def build_graph(df, comments, post_id, user_df, depth=2):
     post_df, comment_df, relevant_user_df = get_graph_dfs(df, comments, post_id, user_df, d=depth)
