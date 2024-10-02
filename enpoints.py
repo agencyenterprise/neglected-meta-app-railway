@@ -1,17 +1,19 @@
-import pandas as pd
-from utils import quantile_transformation, prepare_concept_for_request
-import streamlit as st
-from streamlit_agraph import agraph, Node, Edge, Config, ConfigBuilder
-from specter_cluster_viz import create_viz
-from cav_calc import compare_authors, batch_author_similarity_score
-from sentence_transformers import util
-import torch
 import json
-import numpy as np
 import os
+
+import numpy as np
+import pandas as pd
+import streamlit as st
+import torch
+from scipy import stats
+from sentence_transformers import util
+from streamlit_agraph import Config, ConfigBuilder, Edge, Node, agraph
+
+from cav_calc import batch_author_similarity_score, compare_authors
 from Google import create_and_download_files
 from knowledge_graph_visuals import build_graph
-
+from specter_cluster_viz import create_viz
+from utils import prepare_concept_for_request, quantile_transformation
 
 create_and_download_files()
 specter_embeddings = torch.load("app_files/specter_embeddings.pt")
@@ -76,7 +78,35 @@ def convert_ndarrays_to_lists(obj):
     else:
         return obj
 
-def get_raw_graph(df, comments, post_id, user_df, d=2):
+def calculate_dot_sizes(df: pd.DataFrame, min_size: float = 10, max_size: float = 100) -> pd.DataFrame:
+    def custom_sigmoid(x, k=6):
+        return 1 / (1 + np.exp(-k * (x - 0.5)))
+
+    def calculate_size(values):
+        log_values = np.log1p(values)
+        normalized_values = (log_values - log_values.min()) / (log_values.max() - log_values.min())
+        scaled_values = custom_sigmoid(normalized_values)
+        return min_size + (max_size - min_size) * scaled_values
+
+    # Karma-based size calculation
+    df["dot_size_karma"] = (
+        min_size
+        + (df["karma"] - df["karma"].min()) / (df["karma"].max() - df["karma"].min()) * (max_size - min_size)
+    )
+
+    # Comment-based size calculation
+    df["dot_size_comments"] = calculate_size(df["commentCount"])
+    df["dot_size_comments"] = np.maximum(df["dot_size_comments"], min_size * 1.5)
+
+    # Upvote-based size calculation
+    df["dot_size_upvotes"] = calculate_size(df["upvoteCount"])
+    df["dot_size_upvotes"] = np.maximum(df["dot_size_upvotes"], min_size * 1.5)
+
+    return df
+
+def get_raw_graph(df: pd.DataFrame, comments: pd.DataFrame, post_id: str, user_df: pd.DataFrame, d: int = 2) -> tuple[list, list]:
+    df = calculate_dot_sizes(df)
+
     return build_graph(df, comments, post_id, user_df, depth=d)
 
 ###################################################################################################
