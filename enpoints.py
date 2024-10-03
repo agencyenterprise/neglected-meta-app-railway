@@ -13,7 +13,8 @@ from cav_calc import batch_author_similarity_score, compare_authors
 from Google import create_and_download_files
 from knowledge_graph_visuals import build_graph
 from specter_cluster_viz import create_viz
-from utils import prepare_concept_for_request, quantile_transformation
+from utils import (get_connected_posts_from_db, prepare_concept_for_request,
+                   quantile_transformation, save_connected_posts_to_db)
 
 create_and_download_files()
 specter_embeddings = torch.load("app_files/specter_embeddings.pt")
@@ -209,6 +210,13 @@ def endpoint_specter_clustering(n, cluster_choice, select_by_content):
 
 
 def endpoint_connected_posts(a_name, depth):
+    # Try to get the result from the database
+    db_result = get_connected_posts_from_db(a_name, depth)
+    
+    if db_result:
+        return db_result
+
+    # If not found in database, compute the result
     filtered = df[df["title"].str.strip() == a_name]
 
     if not filtered.empty:
@@ -221,10 +229,15 @@ def endpoint_connected_posts(a_name, depth):
 
     raw_nodes, raw_edges = get_raw_graph(df, comments, post_id, user_df, d=depth)
 
-    return {
+    result = {
         'nodes': raw_nodes,
         'edges': raw_edges,
     }
+
+    # Save the result to the database
+    save_connected_posts_to_db(a_name, depth, result)
+
+    return result
 
 def endpoint_get_authors():
     return author_name_list
