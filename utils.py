@@ -102,31 +102,45 @@ def get_spotlights_for_approach(approach_id):
     conn.close()
     return spotlights
 
-def list_approaches(limit=10, last_spotlight_count=None, last_created_at=None, last_id=None):
+def list_approaches(limit=10, last_spotlight_count=None, last_created_at=None, last_id=None, filter_type=None, order_by='spotlights'):
     conn = get_db_connection()
     cur = conn.cursor()
 
+    where_clause = ""
+    order_clause = ""
+    params = []
+
     if last_spotlight_count is not None and last_created_at and last_id:
-        cur.execute(
-            """
-            SELECT id, main_article, node_id, link, type, label, created_at, spotlight_count
-            FROM approaches
-            WHERE (spotlight_count, created_at, id) < (%s, %s, %s)
-            ORDER BY spotlight_count DESC, created_at DESC, id DESC
-            LIMIT %s
-            """,
-            (last_spotlight_count, last_created_at, last_id, limit + 1)
-        )
+        where_clause = "WHERE (a.spotlight_count, a.created_at, a.id) < (%s, %s, %s)"
+        params.extend([last_spotlight_count, last_created_at, last_id])
+
+    if filter_type in ['post', 'comment']:
+        where_clause += " AND " if where_clause else "WHERE "
+        where_clause += "a.type = %s"
+        params.append(filter_type)
+
+    if order_by == 'spotlights':
+        order_clause = "ORDER BY a.spotlight_count DESC, a.created_at DESC, a.id DESC"
+    elif order_by == 'comments':
+        order_clause = "ORDER BY comment_count DESC, a.created_at DESC, a.id DESC"
+    elif order_by == 'recency':
+        order_clause = "ORDER BY a.created_at DESC, a.id DESC"
     else:
-        cur.execute(
-            """
-            SELECT id, main_article, node_id, link, type, label, created_at, spotlight_count
-            FROM approaches
-            ORDER BY spotlight_count DESC, created_at DESC, id DESC
-            LIMIT %s
-            """,
-            (limit + 1,)
-        )
+        order_clause = "ORDER BY a.spotlight_count DESC, a.created_at DESC, a.id DESC"
+
+    query = f"""
+        SELECT a.id, a.main_article, a.node_id, a.link, a.type, a.label, a.created_at, a.spotlight_count,
+               COUNT(CASE WHEN s.comment IS NOT NULL THEN 1 END) as comment_count
+        FROM approaches a
+        LEFT JOIN spotlights s ON a.id = s.approach_id
+        {where_clause}
+        GROUP BY a.id
+        {order_clause}
+        LIMIT %s
+    """
+    params.append(limit + 1)
+
+    cur.execute(query, tuple(params))
 
     approaches = cur.fetchall()
     cur.close()
@@ -135,17 +149,21 @@ def list_approaches(limit=10, last_spotlight_count=None, last_created_at=None, l
     has_next = len(approaches) > limit
     approaches = approaches[:limit]
 
-    next_cursor = None
+    next_spotlight_count = None
+    next_created_at = None
+    next_id = None
     if has_next and approaches:
         last_approach = approaches[-1]
-        next_cursor = f"{last_approach[7]}_{last_approach[6].isoformat()}_{last_approach[0]}"
+        next_spotlight_count = last_approach[7]
+        next_created_at = last_approach[6]
+        next_id = last_approach[0]
 
     approaches_with_spotlights = []
     for approach in approaches:
         spotlights = get_spotlights_for_approach(approach[0])
         approaches_with_spotlights.append(approach + (spotlights,))
 
-    return approaches_with_spotlights, next_cursor
+    return approaches_with_spotlights, next_spotlight_count, next_created_at, next_id
 
 def string_list_to_list(strlist):
     return [c.strip("'").strip('"') for c in strlist.strip("[]").split(", ")]

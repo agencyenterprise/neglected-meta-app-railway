@@ -111,11 +111,21 @@ def get_approaches():
     last_spotlight_count = request.args.get('lastSpotlightCount', type=int)
     last_created_at = request.args.get('lastCreatedAt')
     last_id = request.args.get('lastId', type=int)
+    filter_type = request.args.get('filter')
+    order_by = request.args.get('orderBy', default='spotlights')
+
+    if filter_type not in [None, 'post', 'comment']:
+        return jsonify({"error": "Invalid filter type. Use 'post', 'comment', or omit for both."}), 400
+
+    if order_by not in ['spotlights', 'comments', 'recency']:
+        return jsonify({"error": "Invalid order_by. Use 'spotlights', 'comments', or 'recency'."}), 400
 
     if last_created_at:
         last_created_at = datetime.fromisoformat(last_created_at)
 
-    approaches, next_cursor = list_approaches(limit, last_spotlight_count, last_created_at, last_id)
+    approaches, next_spotlight_count, next_created_at, next_id = list_approaches(
+        limit, last_spotlight_count, last_created_at, last_id, filter_type, order_by
+    )
     approaches_list = [
         {
             "id": approach[0],
@@ -132,18 +142,17 @@ def get_approaches():
                     "comment": spotlight[1],
                     "created_at": spotlight[2].isoformat()
                 }
-                for spotlight in approach[8]
+                for spotlight in approach[9]
             ]
         }
         for approach in approaches
     ]
 
     next_params = {}
-    if next_cursor:
-        next_spotlight_count, next_created_at, next_id = next_cursor.split('_')
+    if next_spotlight_count is not None:
         next_params = {
             'lastSpotlightCount': next_spotlight_count,
-            'lastCreatedAt': next_created_at,
+            'lastCreatedAt': next_created_at.isoformat() if next_created_at else None,
             'lastId': next_id
         }
 
