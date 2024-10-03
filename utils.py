@@ -4,6 +4,7 @@ from urllib.parse import urlparse
 
 import pandas as pd
 import psycopg2
+from psycopg2.extras import Json
 from sklearn.preprocessing import QuantileTransformer
 
 
@@ -192,3 +193,35 @@ def prepare_concept_for_request(c):
         c = c.replace(char, "")
     c = c.replace("  ", " ")
     return c.strip().strip("/").strip()
+
+def get_connected_posts_from_db(a_name, depth):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT result
+        FROM connected_posts
+        WHERE a_name = %s AND depth = %s
+        """,
+        (a_name, depth)
+    )
+    result = cur.fetchone()
+    cur.close()
+    conn.close()
+    return result[0] if result else None
+
+def save_connected_posts_to_db(a_name, depth, result):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO connected_posts (a_name, depth, result)
+        VALUES (%s, %s, %s)
+        ON CONFLICT (a_name, depth) DO UPDATE
+        SET result = EXCLUDED.result, updated_at = CURRENT_TIMESTAMP
+        """,
+        (a_name, depth, Json(result))
+    )
+    conn.commit()
+    cur.close()
+    conn.close()
