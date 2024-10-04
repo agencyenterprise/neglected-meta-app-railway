@@ -199,7 +199,7 @@ def get_connected_posts_from_db(a_name, depth):
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT result
+        SELECT post_nodes, edges
         FROM connected_posts
         WHERE a_name = %s AND depth = %s
         """,
@@ -208,20 +208,53 @@ def get_connected_posts_from_db(a_name, depth):
     result = cur.fetchone()
     cur.close()
     conn.close()
-    return result[0] if result else None
+    if result:
+        post_nodes, edges = result
+        return {
+            'nodes': post_nodes,
+            'edges': edges
+        }
+    return None
 
 def save_connected_posts_to_db(a_name, depth, result):
     conn = get_db_connection()
     cur = conn.cursor()
+    
+    post_nodes = [node for node in result['nodes'] if node['type'] == 'post']
+    comment_nodes = [node for node in result['nodes'] if node['type'] == 'comment']
+    
     cur.execute(
         """
-        INSERT INTO connected_posts (a_name, depth, result)
-        VALUES (%s, %s, %s)
+        INSERT INTO connected_posts (a_name, depth, post_nodes, comment_nodes, edges)
+        VALUES (%s, %s, %s, %s, %s)
         ON CONFLICT (a_name, depth) DO UPDATE
-        SET result = EXCLUDED.result, updated_at = CURRENT_TIMESTAMP
+        SET post_nodes = EXCLUDED.post_nodes,
+            comment_nodes = EXCLUDED.comment_nodes,
+            edges = EXCLUDED.edges,
+            updated_at = CURRENT_TIMESTAMP
         """,
-        (a_name, depth, Json(result))
+        (a_name, depth, Json(post_nodes), Json(comment_nodes), Json(result['edges']))
     )
     conn.commit()
     cur.close()
     conn.close()
+
+def get_connected_comments_from_db(a_name, depth):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT comment_nodes
+        FROM connected_posts
+        WHERE a_name = %s AND depth = %s
+        """,
+        (a_name, depth)
+    )
+    result = cur.fetchone()
+    cur.close()
+    conn.close()
+    if result:
+        return {
+            'nodes': result[0]
+        }
+    return None

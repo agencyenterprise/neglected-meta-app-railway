@@ -77,7 +77,7 @@ def build_graph(df, comments, post_id, user_df, depth=2):
     nodes = []
     edges = []
     # create post nodes
-    print("Step 1/5: Creating post nodes")
+    # print("Step 1/5: Creating post nodes")
     for i, row in tqdm.tqdm(post_df.iterrows(), total=post_df.shape[0]):
         nodes.append({
             "id": row["_id"],
@@ -91,7 +91,7 @@ def build_graph(df, comments, post_id, user_df, depth=2):
             "commentCount": row["commentCount"],
             "url": row["url"]
         })
-    print("Step 2/5: Creating references edges")
+    # print("Step 2/5: Creating references edges")
     for i, row in tqdm.tqdm(post_df.iterrows(), total=post_df.shape[0]):
         for ref in row["references"]:
             edges.append({
@@ -99,31 +99,31 @@ def build_graph(df, comments, post_id, user_df, depth=2):
                 "target": ref,
                 "label": "references"
             })
-    print("Step 3/7: Creating author nodes")
-    for i, row in tqdm.tqdm(relevant_user_df.iterrows(), total=relevant_user_df.shape[0]):
-        nodes.append({
-            "id": row["user_id"],
-            "label": row["display_name"],
-            "type": "user",
-            "post_count": row["post_count"],
-            "comment_count": row["comment_count"],
-            "size": row["dot_size"],
-            "karma": row["karma"],
-            "url": "https://lesswrong.com/users/" + row["slug"]
-        })
-    print("Step 4/7: Creating authorship edges")
-    for i, row in tqdm.tqdm(post_df.iterrows(), total=post_df.shape[0]):
-        for author in row["authors"]:
-            try:
-                uid = relevant_user_df[relevant_user_df["display_name"] == author]["user_id"].values[0]
-                edges.append({
-                    "source": uid,
-                    "target": row["_id"],
-                    "label": "wrote",
-                })
-            except IndexError:
-                continue
-    print("Step 5/7: Creating comment nodes")
+    # print("Step 3/7: Creating author nodes")
+    # for i, row in tqdm.tqdm(relevant_user_df.iterrows(), total=relevant_user_df.shape[0]):
+    #     nodes.append({
+    #         "id": row["user_id"],
+    #         "label": row["display_name"],
+    #         "type": "user",
+    #         "post_count": row["post_count"],
+    #         "comment_count": row["comment_count"],
+    #         "size": row["dot_size"],
+    #         "karma": row["karma"],
+    #         "url": "https://lesswrong.com/users/" + row["slug"]
+    #     })
+    # print("Step 4/7: Creating authorship edges")
+    # for i, row in tqdm.tqdm(post_df.iterrows(), total=post_df.shape[0]):
+    #     for author in row["authors"]:
+    #         try:
+    #             uid = relevant_user_df[relevant_user_df["display_name"] == author]["user_id"].values[0]
+    #             edges.append({
+    #                 "source": uid,
+    #                 "target": row["_id"],
+    #                 "label": "wrote",
+    #             })
+    #         except IndexError:
+    #             continue
+    # print("Step 5/7: Creating comment nodes")
     for i, row in tqdm.tqdm(comment_df.iterrows(), total=comment_df.shape[0]):
         nodes.append({
             "id": row["_id"],
@@ -132,7 +132,7 @@ def build_graph(df, comments, post_id, user_df, depth=2):
             "url": "https://lesswrong.com/posts/" + row["postId"] + "/comments/" + row["_id"],
             # "upvoteCount": row["upvoteCount"]
         })
-    print("Step 6/7: Creating comment reply edges")
+    # print("Step 6/7: Creating comment reply edges")
     for i, row in tqdm.tqdm(comment_df.iterrows(), total=comment_df.shape[0]):
         if row["parentCommentId"] is not None:
             edges.append({
@@ -146,7 +146,7 @@ def build_graph(df, comments, post_id, user_df, depth=2):
                 "target": row["postId"],
                 "label": "commentOn"
             })
-    print("Step 7/7: Creating authored comment edges")
+    # print("Step 7/7: Creating authored comment edges")
     for i, row in tqdm.tqdm(comment_df.iterrows(), total=comment_df.shape[0]):
         edges.append({
             "source": row["author_id"],

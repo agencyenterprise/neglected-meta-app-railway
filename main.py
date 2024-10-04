@@ -8,10 +8,10 @@ from flask import Flask, jsonify, request
 from flask.cli import with_appcontext
 
 from enpoints import (endpoint_author_similarity_score,
-                      endpoint_connected_posts, endpoint_dataframe,
-                      endpoint_get_articles, endpoint_get_authors,
-                      endpoint_get_content, endpoint_similarity_score,
-                      endpoint_specter_clustering)
+                      endpoint_connected_comments, endpoint_connected_posts,
+                      endpoint_dataframe, endpoint_get_articles,
+                      endpoint_get_authors, endpoint_get_content,
+                      endpoint_similarity_score, endpoint_specter_clustering)
 from utils import create_approach, list_approaches
 
 app = Flask(__name__)
@@ -103,7 +103,17 @@ def get_specter_clustering():
 def get_connected_posts():
     depth = int(request.args.get('depth'))
     a_name = request.args.get('a_name')
-    return jsonify(endpoint_connected_posts(a_name, depth))
+    
+    result = endpoint_connected_posts(a_name, depth)
+    return jsonify(result)
+
+@app.route('/api/connected-comments', methods=['GET'])
+def get_connected_comments():
+    depth = int(request.args.get('depth'))
+    a_name = request.args.get('a_name')
+    
+    result = endpoint_connected_comments(a_name, depth)
+    return jsonify(result)
 
 @app.route('/api/approaches', methods=['GET'])
 def get_approaches():
