@@ -1,4 +1,6 @@
 import os
+import subprocess
+import sys
 from datetime import datetime
 
 import click
@@ -193,6 +195,16 @@ def create_new_approach():
         "id": approach_id,
         "spotlight_count": new_count
     }), 201
+
+def start_population_script():
+  try:
+      subprocess.Popen([sys.executable, 'run_population.py'])
+      print("Population process started.")
+  except Exception as e:
+      print(f"Failed to start population process: {e}")
+
+with app.app_context():
+    start_population_script()
 
 if __name__ == '__main__':
     app.run(port=5000, debug=True)
