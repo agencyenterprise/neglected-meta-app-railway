@@ -5,6 +5,8 @@ from urllib.parse import urlparse
 import pandas as pd
 import psycopg2
 from psycopg2.extras import Json
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail
 from sklearn.preprocessing import QuantileTransformer
 
 
@@ -258,3 +260,37 @@ def get_connected_comments_from_db(a_name, depth):
             'nodes': result[0]
         }
     return None
+
+def send_feedback_email(name: str, email: str, feedback: str) -> bool:
+    sendgrid_api_key = os.getenv("SENDGRID_API_KEY")
+    sender_email = os.getenv("SENDER_EMAIL")
+    recipient_email = os.getenv("RECIPIENT_EMAIL")
+
+    if not all([sendgrid_api_key, sender_email, recipient_email]):
+        raise ValueError("SendGrid configuration is incomplete. Please check your environment variables.")
+
+    
+    message = Mail(
+        from_email=sender_email,
+        to_emails=recipient_email,
+        subject="NAE - New Feedback Received",
+        plain_text_content=f"""
+        New feedback has been received on the NAE website:
+
+        Name: {name}
+        Email: {email}
+        Feedback: {feedback}
+        """
+    )
+
+    try:
+        sg = SendGridAPIClient(sendgrid_api_key)
+        response = sg.send(message)
+        if response.status_code == 202:
+            return True
+        else:
+            print(f"Error sending email: Status code {response.status_code}")
+            return False
+    except Exception as e:
+        print(f"Error sending email: {str(e)}")
+        return False
