@@ -9,3 +9,4 @@ secret*
 .env
 neglected-meta-analysis-lesswrong/
 venv/*
+data/*
