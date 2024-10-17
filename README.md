@@ -116,6 +116,9 @@ conda activate lesswrong_meta
 
 Check out the notebook `analyze.ipynb` to see the code that analyzes the dataset. In it, I've done a bit of cleaning up front, then some KMeans clustering to find clusters of articles. From there, I apply TSNE to visualize the clusters in 2D. I also attempted to normalize the tightness and average score to find clusters with a high average score and few articles, which might be neglected.
 
+## Adding new data
+the `get_new_data.ipynb` file works and can scrape data for a given date range. It is also able to get associated pingbacks.
+
 ## Todo - Ideas for determining neglected approaches
 
 - maybe its authors - they post a lot but they aren’t getting a lot of comments on their posts - how many comments are they getting?
