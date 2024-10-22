@@ -5,6 +5,7 @@ import os
 import pickle
 import shutil
 
+from dateutil import parser
 from dotenv import load_dotenv
 from google.oauth2.service_account import Credentials
 from google_auth_oauthlib.flow import Flow, InstalledAppFlow
@@ -45,13 +46,14 @@ def create_and_download_files():
         "1cyyNMD5wj53mc_cMLfL8VoTHVWDdO1Z7"
     ]
     file_paths = ["app_files.zip"]
-    download_files(file_ids, file_paths)
+    last_modified_time = download_files(file_ids, file_paths)
     for fp in file_paths:
         shutil.unpack_archive(
             filename=fp,  # Path to the archive file
             extract_dir=".",  # Destination directory for extraction
             format=None,  # Optional: Specify the archive format if it's not detected automatically
         )
+    return last_modified_time
 
 
 def download_files(file_ids, file_paths):
@@ -64,10 +66,12 @@ def download_files(file_ids, file_paths):
 
     # Create the service
     service = create_service(API_NAME, API_VERSION, SCOPES, KEY_FILE_LOCATION)
+    last_modified_time = None
     for fid, fp in zip(file_ids, file_paths):
         
         file_metadata = service.files().get(fileId=fid, fields="modifiedTime").execute()
-        modified_time = datetime.fromisoformat(file_metadata['modifiedTime'][:-1])  
+        modified_time = parser.parse(file_metadata['modifiedTime'])
+        last_modified_time = modified_time
         
         print(f"File {fp} last modified on: {modified_time}")
 
@@ -83,6 +87,7 @@ def download_files(file_ids, file_paths):
             f.write(fh.read())
             f.close()
     print("Done")
+    return last_modified_time
 
 
 def create_service(api_name, api_version, scopes, key_file_location):
