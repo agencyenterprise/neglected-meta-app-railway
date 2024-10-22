@@ -1,17 +1,15 @@
-import pickle
+import datetime
+import io
+import json
 import os
+import pickle
+import shutil
+
+from dotenv import load_dotenv
+from google.oauth2.service_account import Credentials
 from google_auth_oauthlib.flow import Flow, InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
-import datetime
-import os
-import io
-from googleapiclient.http import MediaIoBaseDownload
-import shutil
-import json
-from google.oauth2.service_account import Credentials
-from googleapiclient.discovery import build
-from dotenv import load_dotenv
 
 load_dotenv()
 
@@ -67,6 +65,12 @@ def download_files(file_ids, file_paths):
     # Create the service
     service = create_service(API_NAME, API_VERSION, SCOPES, KEY_FILE_LOCATION)
     for fid, fp in zip(file_ids, file_paths):
+        
+        file_metadata = service.files().get(fileId=fid, fields="modifiedTime").execute()
+        modified_time = datetime.fromisoformat(file_metadata['modifiedTime'][:-1])  
+        
+        print(f"File {fp} last modified on: {modified_time}")
+
         request = service.files().get_media(fileId=fid)
         fh = io.BytesIO()
         downloader = MediaIoBaseDownload(fh, request)
