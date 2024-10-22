@@ -16,7 +16,8 @@ from specter_cluster_viz import create_viz
 from utils import (get_connected_comments_from_db, get_connected_posts_from_db,
                    save_connected_posts_to_db)
 
-create_and_download_files()
+file_date = create_and_download_files()
+print(f"Files last modified on: {file_date}")
 specter_embeddings = torch.load("app_files/specter_embeddings.pt")
 style_embeddings = torch.load("app_files/style_embeddings.pt")
 top_100_embeddings = torch.load("app_files/top_100_embeddings.pt")
