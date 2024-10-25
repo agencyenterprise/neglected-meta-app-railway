@@ -28,7 +28,7 @@ async def store_all_articles_in_db(depth=2):
             if get_db_size_gb() >= MAX_DB_SIZE_GB:
                 print(f"Database size limit reached ({MAX_DB_SIZE_GB}GB). Stopping population.")
                 return article, False
-            data = endpoint_connected_posts(article, depth=depth)
+            data = endpoint_connected_posts(article, depth=depth, population=True)
             return article, True
         except Exception as e:
             print(f"Error processing article '{article}': {str(e)}")
@@ -58,7 +58,7 @@ def main():
         print(f"Database is already {initial_size:.2f}GB. Maximum size ({MAX_DB_SIZE_GB}GB) reached or exceeded. Aborting population.")
         return
 
-    print(f"Starting to store all articles in the database with depth {args.depth}...")
+    print(f"Starting to store {len(endpoint_get_articles())} articles in the database with depth {args.depth}...")
     print(f"Initial database size: {initial_size:.2f}GB")
 
     successful, failed = asyncio.run(store_all_articles_in_db(depth=args.depth))

@@ -1,12 +1,12 @@
 import json
 import os
+import subprocess
+import sys
+from datetime import datetime, timezone
 
 import numpy as np
 import pandas as pd
-import streamlit as st
 import torch
-from scipy import stats
-from sentence_transformers import util
 from streamlit_agraph import Config, ConfigBuilder, Edge, Node, agraph
 
 from cav_calc import batch_author_similarity_score, compare_authors
@@ -16,8 +16,17 @@ from specter_cluster_viz import create_viz
 from utils import (get_connected_comments_from_db, get_connected_posts_from_db,
                    save_connected_posts_to_db)
 
+
+def start_population_script():
+  try:
+      subprocess.Popen([sys.executable, 'run_population.py'])
+      print("Population process started.")
+  except Exception as e:
+      print(f"Failed to start population process: {e}")
+
 file_date = create_and_download_files()
-print(f"Files last modified on: {file_date}")
+
+start_population_script()
 specter_embeddings = torch.load("app_files/specter_embeddings.pt")
 style_embeddings = torch.load("app_files/style_embeddings.pt")
 top_100_embeddings = torch.load("app_files/top_100_embeddings.pt")
@@ -85,16 +94,36 @@ def calculate_dot_sizes(df: pd.DataFrame, min_size: float = 10, max_size: float 
         return 1 / (1 + np.exp(-k * (x - 0.5)))
 
     def calculate_size(values):
-        log_values = np.log1p(values)
-        normalized_values = (log_values - log_values.min()) / (log_values.max() - log_values.min())
+        # Convert to numeric, replacing non-numeric values with NaN
+        numeric_values = pd.to_numeric(values, errors='coerce')
+        
+        # Replace zero or negative values with NaN
+        numeric_values = numeric_values.where(numeric_values > 0, np.nan)
+        
+        # If all values are NaN, return an array of min_size
+        if numeric_values.isna().all():
+            return np.full(len(values), min_size)
+        
+        log_values = np.log1p(numeric_values)
+        
+        # Calculate min and max, ignoring NaN values
+        log_min = log_values.min()
+        log_max = log_values.max()
+        
+        # Normalize values, handling the case where min and max are equal
+        if log_min == log_max:
+            normalized_values = np.full(len(log_values), 0.5)
+        else:
+            normalized_values = (log_values - log_min) / (log_max - log_min)
+        
         scaled_values = custom_sigmoid(normalized_values)
-        return min_size + (max_size - min_size) * scaled_values
+        
+        # Calculate sizes, using min_size for NaN values
+        sizes = min_size + (max_size - min_size) * scaled_values
+        return sizes.fillna(min_size)
 
     # Karma-based size calculation
-    df["dot_size_karma"] = (
-        min_size
-        + (df["karma"] - df["karma"].min()) / (df["karma"].max() - df["karma"].min()) * (max_size - min_size)
-    )
+    df["dot_size_karma"] = calculate_size(df["karma"])
 
     # Comment-based size calculation
     df["dot_size_comments"] = calculate_size(df["commentCount"])
@@ -210,11 +239,11 @@ def endpoint_specter_clustering(n, cluster_choice, select_by_content):
     }
 
 
-def endpoint_connected_posts(a_name, depth):
+def endpoint_connected_posts(a_name, depth, population=False):
     # Try to get the result from database
     db_result = get_connected_posts_from_db(a_name, depth)
     
-    if db_result:
+    if db_result and not population:
         return db_result
 
     # If not found in database, compute the result

@@ -201,7 +201,7 @@ def get_connected_posts_from_db(a_name, depth):
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT post_nodes, edges
+        SELECT post_nodes, edges, updated_at
         FROM connected_posts
         WHERE a_name = %s AND depth = %s
         """,
@@ -211,10 +211,11 @@ def get_connected_posts_from_db(a_name, depth):
     cur.close()
     conn.close()
     if result:
-        post_nodes, edges = result
+        post_nodes, edges, updated_at = result
         return {
             'nodes': post_nodes,
-            'edges': edges
+            'edges': edges,
+            'updated_at': updated_at
         }
     return None
 
@@ -224,7 +225,7 @@ def save_connected_posts_to_db(a_name, depth, result):
     
     post_nodes = [node for node in result['nodes'] if node['type'] == 'post']
     comment_nodes = [node for node in result['nodes'] if node['type'] == 'comment']
-    
+
     cur.execute(
         """
         INSERT INTO connected_posts (a_name, depth, post_nodes, comment_nodes, edges)

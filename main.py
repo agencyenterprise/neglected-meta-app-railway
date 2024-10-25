@@ -213,13 +213,6 @@ def send_feedback():
     else:
         return jsonify({"error": "Failed to send feedback"}), 500
 
-def start_population_script():
-  try:
-      subprocess.Popen([sys.executable, 'run_population.py'])
-      print("Population process started.")
-  except Exception as e:
-      print(f"Failed to start population process: {e}")
-
 # with app.app_context():
 #     start_population_script()
 
