@@ -26,6 +26,13 @@ def initialize_db_pool():
     global connection_pool
     
     try:
+        if connection_pool is not None:
+            try:
+                connection_pool.closeall()
+            except Exception:
+                pass
+            connection_pool = None
+            
         db_url = os.getenv("DATABASE_URL") or os.getenv("DATABASE_PUBLIC_URL")
         
         if not db_url:
@@ -33,22 +40,21 @@ def initialize_db_pool():
             
         result = urlparse(db_url)
         
-        if connection_pool is None:
-            connection_pool = pool.SimpleConnectionPool(
-                minconn=1,
-                maxconn=10,  # Reduced from 20 to 10 to be more conservative
-                host=result.hostname,
-                port=result.port,
-                database=result.path[1:],
-                user=result.username,
-                password=result.password,
-                connect_timeout=3,
-                keepalives=1,
-                keepalives_idle=30,
-                keepalives_interval=10,
-                keepalives_count=5
-            )
-            logger.info("Database connection pool initialized successfully")
+        connection_pool = pool.ThreadedConnectionPool(
+            minconn=1,
+            maxconn=10, 
+            host=result.hostname,
+            port=result.port,
+            database=result.path[1:],
+            user=result.username,
+            password=result.password,
+            connect_timeout=5,
+            keepalives=1,
+            keepalives_idle=30,
+            keepalives_interval=10,
+            keepalives_count=5
+        )
+        logger.info("Database connection pool initialized successfully")
     except Exception as e:
         logger.error(f"Failed to initialize connection pool: {str(e)}")
         raise
@@ -60,39 +66,40 @@ def get_db_connection():
     max_retries = 3
     retry_count = 0
     
-    try:
-        while retry_count < max_retries:
-            try:
-                if connection_pool is None:
-                    initialize_db_pool()
-                conn = connection_pool.getconn()
-                logger.debug("Successfully acquired database connection")
-                break
-            except psycopg2.pool.PoolError as e:
-                retry_count += 1
-                logger.warning(f"Failed to get connection (attempt {retry_count}/{max_retries}): {str(e)}")
-                if retry_count == max_retries:
-                    raise
-                time.sleep(0.1 * retry_count)  # Exponential backoff
-        
-        yield conn
-        
-        if conn and not conn.closed:
-            conn.commit()
-            logger.debug("Successfully committed transaction")
-            
-    except Exception as e:
-        logger.error(f"Database error occurred: {str(e)}")
-        if conn and not conn.closed:
-            conn.rollback()
-            logger.debug("Rolled back transaction")
-        raise
+    while retry_count < max_retries:
+        try:
+            if connection_pool is None:
+                initialize_db_pool()
+            conn = connection_pool.getconn()
+            break
+        except (psycopg2.OperationalError, psycopg2.pool.PoolError) as e:
+            retry_count += 1
+            logger.warning(f"Failed to get connection (attempt {retry_count}/{max_retries}): {str(e)}")
+            if retry_count == max_retries:
+                raise
+            time.sleep(1)  # Longer sleep between retries
     
+    if conn is None:
+        raise Exception("Failed to acquire database connection")
+        
+    try:
+        yield conn
+        if not conn.closed:
+            conn.commit()
+    except Exception:
+        if not conn.closed:
+            conn.rollback()
+        raise
     finally:
-        if conn is not None:
-            if not conn.closed:
+        if conn is not None and not conn.closed:
+            try:
                 connection_pool.putconn(conn)
-                logger.debug("Released connection back to pool")
+            except Exception as e:
+                logger.error(f"Error releasing connection: {str(e)}")
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
 def close_db_pool():
     """Close all connections in the pool."""
