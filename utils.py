@@ -295,3 +295,11 @@ def send_feedback_email(name: str, email: str, feedback: str) -> bool:
     except Exception as e:
         print(f"Error sending email: {str(e)}")
         return False
+
+def delete_meetup_posts():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM connected_posts WHERE LOWER(a_name) LIKE LOWER('%meetup%')")
+    conn.commit()
+    cur.close()
+    conn.close()
