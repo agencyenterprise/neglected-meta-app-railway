@@ -242,9 +242,18 @@ def endpoint_specter_clustering(n, cluster_choice, select_by_content):
 def endpoint_connected_posts(a_name, depth, population=False):
     # Try to get the result from database
     db_result = get_connected_posts_from_db(a_name, depth)
+
+    # Convert to date for comparison, handling both string and datetime inputs
+    db_date = (db_result['updated_at'].date() 
+               if isinstance(db_result['updated_at'], datetime) 
+               else datetime.strptime(db_result['updated_at'], "%Y-%m-%d %H:%M:%S").date())
+    current_date = datetime.now(timezone.utc).date()
     
-    if db_result and not population:
-        return db_result
+    is_up_to_date = db_date == current_date
+    
+    if db_result:
+        if not population or (population and is_up_to_date):
+            return db_result
 
     # If not found in database, compute the result
     filtered = df[df["title"].str.strip() == a_name]
