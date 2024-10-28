@@ -1,5 +1,8 @@
 import os
+import time
+from contextlib import contextmanager
 from datetime import datetime, timezone
+from typing import Optional
 from urllib.parse import urlparse
 
 import pandas as pd
@@ -11,42 +14,56 @@ from sendgrid.helpers.mail import Mail
 from sklearn.preprocessing import QuantileTransformer
 
 # Define a global variable for the connection pool
-connection_pool = None
+connection_pool: Optional[pool.SimpleConnectionPool] = None
 
 def initialize_db_pool():
     """Initialize the connection pool if not already created."""
     global connection_pool
     db_url = os.getenv("DATABASE_URL") or os.getenv("DATABASE_PUBLIC_URL")
     
-    if db_url:
-        result = urlparse(db_url)
-        if connection_pool is None:
-            connection_pool = pool.SimpleConnectionPool(
-                minconn=1,
-                maxconn=100,
-                host=result.hostname,
-                port=result.port,
-                database=result.path[1:],
-                user=result.username,
-                password=result.password
-            )
-    else:
+    if not db_url:
         raise Exception("DATABASE URL is not set in the environment variables")
-
-def get_db_connection():
-    """Get a connection from the pool."""
-    global connection_pool
+        
+    result = urlparse(db_url)
     if connection_pool is None:
-        initialize_db_pool()
-    
-    # Get a connection from the pool
-    return connection_pool.getconn()
+        connection_pool = pool.SimpleConnectionPool(
+            minconn=1,
+            maxconn=20, 
+            host=result.hostname,
+            port=result.port,
+            database=result.path[1:],
+            user=result.username,
+            password=result.password,
+            connect_timeout=3,
+            keepalives=1,
+            keepalives_idle=30,
+            keepalives_interval=10,
+            keepalives_count=5
+        )
 
-def release_db_connection(conn):
-    """Release a connection back to the pool."""
-    global connection_pool
-    if connection_pool:
-        connection_pool.putconn(conn)
+@contextmanager
+def get_db_connection():
+    """Context manager for database connections."""
+    conn = None
+    max_retries = 3
+    retry_count = 0
+    
+    while retry_count < max_retries:
+        try:
+            if connection_pool is None:
+                initialize_db_pool()
+            conn = connection_pool.getconn()
+            yield conn
+            break
+        except psycopg2.pool.PoolError:
+            retry_count += 1
+            time.sleep(0.1)  
+            if retry_count == max_retries:
+                raise
+        finally:
+            if conn is not None:
+                conn.commit() 
+                connection_pool.putconn(conn)
 
 def close_db_pool():
     """Close all connections in the pool."""
@@ -58,8 +75,7 @@ def close_db_pool():
 def create_approach(main_article, node_id, link, type, label, email=None, comment=None):
     existing_approach = get_approach_by_node_id(node_id)
     
-    conn = get_db_connection()
-    try:
+    with get_db_connection() as conn:
         cur = conn.cursor()
         
         if existing_approach:
@@ -94,16 +110,11 @@ def create_approach(main_article, node_id, link, type, label, email=None, commen
                 (approach_id, email, comment, datetime.now(timezone.utc))
             )
         
-        conn.commit()
         cur.close()
-    finally:
-        release_db_connection(conn)
-    
-    return approach_id, new_count, existing_approach is not None
+        return approach_id, new_count, existing_approach is not None
 
 def get_approach_by_node_id(node_id):
-    conn = get_db_connection()
-    try:
+    with get_db_connection() as conn:
         cur = conn.cursor()
         cur.execute(
             """
@@ -115,14 +126,10 @@ def get_approach_by_node_id(node_id):
         )
         approach = cur.fetchone()
         cur.close()
-    finally:
-        release_db_connection(conn)
-    
-    return approach
+        return approach
 
 def get_spotlights_for_approach(approach_id):
-    conn = get_db_connection()
-    try:
+    with get_db_connection() as conn:
         cur = conn.cursor()
         cur.execute(
             """
@@ -135,14 +142,10 @@ def get_spotlights_for_approach(approach_id):
         )
         spotlights = cur.fetchall()
         cur.close()
-    finally:
-        release_db_connection(conn)
-    
-    return spotlights
+        return spotlights
 
 def list_approaches(limit=10, last_spotlight_count=None, last_created_at=None, last_id=None, filter_type=None, order_by='spotlights'):
-    conn = get_db_connection()
-    try:
+    with get_db_connection() as conn:
         cur = conn.cursor()
 
         where_clause = ""
@@ -201,10 +204,7 @@ def list_approaches(limit=10, last_spotlight_count=None, last_created_at=None, l
             spotlights = get_spotlights_for_approach(approach[0])
             approaches_with_spotlights.append(approach + (spotlights,))
 
-    finally:
-        release_db_connection(conn)
-
-    return approaches_with_spotlights, next_spotlight_count, next_created_at, next_id
+        return approaches_with_spotlights, next_spotlight_count, next_created_at, next_id
 
 def string_list_to_list(strlist):
     return [c.strip("'").strip('"') for c in strlist.strip("[]").split(", ")]
@@ -235,8 +235,7 @@ def prepare_concept_for_request(c):
     return c.strip().strip("/").strip()
 
 def get_connected_posts_from_db(a_name, depth):
-    conn = get_db_connection()
-    try:
+    with get_db_connection() as conn:
         cur = conn.cursor()
         cur.execute(
             """
@@ -248,21 +247,18 @@ def get_connected_posts_from_db(a_name, depth):
         )
         result = cur.fetchone()
         cur.close()
-    finally:
-        release_db_connection(conn)
-    
-    if result:
-        post_nodes, edges, updated_at = result
-        return {
-            'nodes': post_nodes,
-            'edges': edges,
-            'updated_at': updated_at
-        }
-    return None
+        
+        if result:
+            post_nodes, edges, updated_at = result
+            return {
+                'nodes': post_nodes,
+                'edges': edges,
+                'updated_at': updated_at
+            }
+        return None
 
 def save_connected_posts_to_db(a_name, depth, result):
-    conn = get_db_connection()
-    try:
+    with get_db_connection() as conn:
         cur = conn.cursor()
         
         post_nodes = [node for node in result['nodes'] if node['type'] == 'post']
@@ -281,14 +277,10 @@ def save_connected_posts_to_db(a_name, depth, result):
             (a_name, depth, Json(post_nodes), Json(comment_nodes), Json(result['edges']))
         )
         
-        conn.commit()
         cur.close()
-    finally:
-        release_db_connection(conn)
 
 def get_connected_comments_from_db(a_name, depth):
-    conn = get_db_connection()
-    try:
+    with get_db_connection() as conn:
         cur = conn.cursor()
         cur.execute(
             """
@@ -300,14 +292,12 @@ def get_connected_comments_from_db(a_name, depth):
         )
         result = cur.fetchone()
         cur.close()
-    finally:
-        release_db_connection(conn)
-    
-    if result:
-        return {
-            'nodes': result[0]
-        }
-    return None
+        
+        if result:
+            return {
+                'nodes': result[0]
+            }
+        return None
 
 def send_feedback_email(name: str, email: str, feedback: str) -> bool:
     sendgrid_api_key = os.getenv("SENDGRID_API_KEY")
@@ -344,11 +334,7 @@ def send_feedback_email(name: str, email: str, feedback: str) -> bool:
         return False
 
 def delete_meetup_posts():
-    conn = get_db_connection()
-    try:
+    with get_db_connection() as conn:
         cur = conn.cursor()
         cur.execute("DELETE FROM connected_posts WHERE LOWER(a_name) LIKE LOWER('%meetup%')")
-        conn.commit()
         cur.close()
-    finally:
-        release_db_connection(conn)
