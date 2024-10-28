@@ -21,6 +21,9 @@ def get_db_size_gb():
 async def store_all_articles_in_db(depth=2):
     delete_meetup_posts()
     articles = endpoint_get_articles()
+    total_articles = len(articles)
+
+    print(f"Fetching and storing data for {total_articles} articles with depth {depth}...")
     
     def process_article(article):
         try:
@@ -37,7 +40,7 @@ async def store_all_articles_in_db(depth=2):
             return article, False, error_message
 
     with ThreadPoolExecutor(max_workers=1) as executor:
-        results = list(executor.map(process_article, articles))
+        results = list(tqdm(executor.map(process_article, articles), total=total_articles))
 
     successful = [article for article, success, _ in results if success]
     failed = [(article, reason) for article, success, reason in results if not success and reason is not None]
