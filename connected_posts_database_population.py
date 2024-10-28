@@ -7,6 +7,7 @@ from sqlalchemy import create_engine, text
 from tqdm import tqdm
 
 from enpoints import endpoint_connected_posts, endpoint_get_articles
+from utils import delete_meetup_posts
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 MAX_DB_SIZE_GB = 32
@@ -18,33 +19,32 @@ def get_db_size_gb():
         return result.scalar()
 
 async def store_all_articles_in_db(depth=2):
+    delete_meetup_posts()
     articles = endpoint_get_articles()
-    total_articles = len(articles)
     
-    print(f"Fetching and storing data for {total_articles} articles with depth {depth}...")
-
     def process_article(article):
         try:
             if get_db_size_gb() >= MAX_DB_SIZE_GB:
                 print(f"Database size limit reached ({MAX_DB_SIZE_GB}GB). Stopping population.")
-                return article, False
+                return article, False, "Database size limit reached"
+
             data = endpoint_connected_posts(article, depth=depth, population=True)
-            return article, True
+            print(f"Processing article: '{article}'")
+            return article, True, None
         except Exception as e:
-            print(f"Error processing article '{article}': {str(e)}")
-            return article, False
+            error_message = f"Error processing article '{article}': {str(e)}"
+            print(error_message)
+            return article, False, error_message
 
-    with ThreadPoolExecutor(max_workers=10) as executor:
-        results = list(tqdm(executor.map(process_article, articles), total=total_articles))
-        if any(not success for _, success in results):
-            if get_db_size_gb() >= MAX_DB_SIZE_GB:
-                print(f"Database size limit reached ({MAX_DB_SIZE_GB}GB). Stopping population.")
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        results = list(executor.map(process_article, articles))
 
-    successful = [article for article, success in results if success]
-    failed = [article for article, success in results if not success]
+    successful = [article for article, success, _ in results if success]
+    failed = [(article, reason) for article, success, reason in results if not success and reason is not None]
 
     print(f"Successfully processed and stored {len(successful)} articles.")
-    print(f"Failed to process {len(failed)} articles.")
+    if failed:
+        print(f"Failed to process {len(failed)} articles.")
 
     return successful, failed
 
@@ -58,7 +58,7 @@ def main():
         print(f"Database is already {initial_size:.2f}GB. Maximum size ({MAX_DB_SIZE_GB}GB) reached or exceeded. Aborting population.")
         return
 
-    print(f"Starting to store {len(endpoint_get_articles())} articles in the database with depth {args.depth}...")
+    print(f"Starting to search for the target article with depth {args.depth}...")
     print(f"Initial database size: {initial_size:.2f}GB")
 
     successful, failed = asyncio.run(store_all_articles_in_db(depth=args.depth))
@@ -66,12 +66,13 @@ def main():
     final_size = get_db_size_gb()
     print(f"Final database size: {final_size:.2f}GB")
     print(f"Successful articles: {len(successful)}")
-    print(f"Failed articles: {len(failed)}")
     
     if failed:
         print("Failed articles:")
-        for article in failed:
-            print(f"  - {article}")
+        for article, reason in failed:
+            print(f"  - {article}: {reason}")
+    else:
+        print("No articles failed due to errors.")
 
 if __name__ == "__main__":
     main()

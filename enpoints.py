@@ -301,7 +301,9 @@ def endpoint_get_authors():
     return author_name_list
 
 def endpoint_get_articles():
-    return article_names
+    filtered_articles = [article for article in article_names if 'meetup' not in article.lower()]
+    
+    return filtered_articles
 
 def endpoint_get_content():
     return app_info["text"].to_list()
