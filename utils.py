@@ -23,7 +23,7 @@ def initialize_db_pool():
         if connection_pool is None:
             connection_pool = pool.SimpleConnectionPool(
                 minconn=1,
-                maxconn=10,
+                maxconn=100,
                 host=result.hostname,
                 port=result.port,
                 database=result.path[1:],
