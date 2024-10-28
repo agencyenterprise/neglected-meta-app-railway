@@ -1,55 +1,62 @@
 import argparse
 import asyncio
 import os
-from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
 
 from sqlalchemy import create_engine, text
 from tqdm import tqdm
 
 from enpoints import endpoint_connected_posts, endpoint_get_articles
-from utils import delete_meetup_posts
+from utils import close_db_pool, delete_meetup_posts, get_db_connection
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 MAX_DB_SIZE_GB = 48
 
 def get_db_size_gb():
-    engine = create_engine(DATABASE_URL)
-    with engine.connect() as connection:
-        result = connection.execute(text("SELECT pg_database_size(current_database()) / 1024 / 1024 / 1024 as size_gb"))
-        return result.scalar()
+    with get_db_connection() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT pg_database_size(current_database()) / 1024 / 1024 / 1024 as size_gb")
+        result = cur.fetchone()
+        cur.close()
+        return result[0]
 
 async def store_all_articles_in_db(depth=2):
-    delete_meetup_posts()
-    articles = endpoint_get_articles()
-    total_articles = len(articles)
+    try:
+        delete_meetup_posts()
+        articles = endpoint_get_articles()
+        total_articles = len(articles)
 
-    print(f"Fetching and storing data for {total_articles} articles with depth {depth}...")
-    
-    def process_article(article):
-        try:
-            if get_db_size_gb() >= MAX_DB_SIZE_GB:
-                print(f"Database size limit reached ({MAX_DB_SIZE_GB}GB). Stopping population.")
-                return article, False, "Database size limit reached"
+        print(f"Fetching and storing data for {total_articles} articles with depth {depth}...")
+        
+        successful = []
+        failed = []
 
-            data = endpoint_connected_posts(article, depth=depth, population=True)
-            print(f"Processing article: '{article}'")
-            return article, True, None
-        except Exception as e:
-            error_message = f"Error processing article '{article}': {str(e)}"
-            print(error_message)
-            return article, False, error_message
+        for article in tqdm(articles, total=total_articles):
+            try:
+                if get_db_size_gb() >= MAX_DB_SIZE_GB:
+                    print(f"Database size limit reached ({MAX_DB_SIZE_GB}GB). Stopping population.")
+                    break
 
-    with ThreadPoolExecutor(max_workers=1) as executor:
-        results = list(tqdm(executor.map(process_article, articles), total=total_articles))
+                data = endpoint_connected_posts(article, depth=depth, population=True)
+                successful.append(article)
+                print(f"Successfully processed article: '{article}'")
+                
+                # Add a small delay between operations
+                await asyncio.sleep(0.1)
+                
+            except Exception as e:
+                error_message = f"Error processing article '{article}': {str(e)}"
+                print(error_message)
+                failed.append((article, error_message))
 
-    successful = [article for article, success, _ in results if success]
-    failed = [(article, reason) for article, success, reason in results if not success and reason is not None]
+        print(f"Successfully processed and stored {len(successful)} articles.")
+        if failed:
+            print(f"Failed to process {len(failed)} articles.")
 
-    print(f"Successfully processed and stored {len(successful)} articles.")
-    if failed:
-        print(f"Failed to process {len(failed)} articles.")
-
-    return successful, failed
+        return successful, failed
+    finally:
+        # Ensure pool is closed after processing
+        close_db_pool()
 
 def main():
     parser = argparse.ArgumentParser(description="Populate database with connected posts.")
