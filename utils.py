@@ -1,8 +1,9 @@
+import logging
 import os
 import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional
 from urllib.parse import urlparse
 
 import pandas as pd
@@ -13,33 +14,44 @@ from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 from sklearn.preprocessing import QuantileTransformer
 
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # Define a global variable for the connection pool
 connection_pool: Optional[pool.SimpleConnectionPool] = None
 
 def initialize_db_pool():
     """Initialize the connection pool if not already created."""
     global connection_pool
-    db_url = os.getenv("DATABASE_URL") or os.getenv("DATABASE_PUBLIC_URL")
     
-    if not db_url:
-        raise Exception("DATABASE URL is not set in the environment variables")
+    try:
+        db_url = os.getenv("DATABASE_URL") or os.getenv("DATABASE_PUBLIC_URL")
         
-    result = urlparse(db_url)
-    if connection_pool is None:
-        connection_pool = pool.SimpleConnectionPool(
-            minconn=1,
-            maxconn=20, 
-            host=result.hostname,
-            port=result.port,
-            database=result.path[1:],
-            user=result.username,
-            password=result.password,
-            connect_timeout=3,
-            keepalives=1,
-            keepalives_idle=30,
-            keepalives_interval=10,
-            keepalives_count=5
-        )
+        if not db_url:
+            raise Exception("DATABASE URL is not set in the environment variables")
+            
+        result = urlparse(db_url)
+        
+        if connection_pool is None:
+            connection_pool = pool.SimpleConnectionPool(
+                minconn=1,
+                maxconn=10,  # Reduced from 20 to 10 to be more conservative
+                host=result.hostname,
+                port=result.port,
+                database=result.path[1:],
+                user=result.username,
+                password=result.password,
+                connect_timeout=3,
+                keepalives=1,
+                keepalives_idle=30,
+                keepalives_interval=10,
+                keepalives_count=5
+            )
+            logger.info("Database connection pool initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize connection pool: {str(e)}")
+        raise
 
 @contextmanager
 def get_db_connection():
@@ -48,28 +60,50 @@ def get_db_connection():
     max_retries = 3
     retry_count = 0
     
-    while retry_count < max_retries:
-        try:
-            if connection_pool is None:
-                initialize_db_pool()
-            conn = connection_pool.getconn()
-            yield conn
-            break
-        except psycopg2.pool.PoolError:
-            retry_count += 1
-            time.sleep(0.1)  
-            if retry_count == max_retries:
-                raise
-        finally:
-            if conn is not None:
-                conn.commit() 
+    try:
+        while retry_count < max_retries:
+            try:
+                if connection_pool is None:
+                    initialize_db_pool()
+                conn = connection_pool.getconn()
+                logger.debug("Successfully acquired database connection")
+                break
+            except psycopg2.pool.PoolError as e:
+                retry_count += 1
+                logger.warning(f"Failed to get connection (attempt {retry_count}/{max_retries}): {str(e)}")
+                if retry_count == max_retries:
+                    raise
+                time.sleep(0.1 * retry_count)  # Exponential backoff
+        
+        yield conn
+        
+        if conn and not conn.closed:
+            conn.commit()
+            logger.debug("Successfully committed transaction")
+            
+    except Exception as e:
+        logger.error(f"Database error occurred: {str(e)}")
+        if conn and not conn.closed:
+            conn.rollback()
+            logger.debug("Rolled back transaction")
+        raise
+    
+    finally:
+        if conn is not None:
+            if not conn.closed:
                 connection_pool.putconn(conn)
+                logger.debug("Released connection back to pool")
 
 def close_db_pool():
     """Close all connections in the pool."""
     global connection_pool
-    if connection_pool:
-        connection_pool.closeall()
+    try:
+        if connection_pool:
+            connection_pool.closeall()
+            logger.info("Database connection pool closed successfully")
+    except Exception as e:
+        logger.error(f"Error closing connection pool: {str(e)}")
+        raise
 
 # Define the Idea model operations using psycopg2
 def create_approach(main_article, node_id, link, type, label, email=None, comment=None):
@@ -338,3 +372,16 @@ def delete_meetup_posts():
         cur = conn.cursor()
         cur.execute("DELETE FROM connected_posts WHERE LOWER(a_name) LIKE LOWER('%meetup%')")
         cur.close()
+
+def get_pool_status() -> dict[str, Any]:
+    """Get current status of the connection pool."""
+    if connection_pool is None:
+        return {"status": "not_initialized"}
+    
+    return {
+        "status": "active",
+        "min_connections": connection_pool.minconn,
+        "max_connections": connection_pool.maxconn,
+        "used_connections": len(connection_pool._used),
+        "free_connections": len(connection_pool._pool)
+    }
