@@ -10,7 +10,7 @@ from enpoints import endpoint_connected_posts, endpoint_get_articles
 from utils import delete_meetup_posts
 
 DATABASE_URL = os.getenv("DATABASE_URL")
-MAX_DB_SIZE_GB = 32
+MAX_DB_SIZE_GB = 48
 
 def get_db_size_gb():
     engine = create_engine(DATABASE_URL)
