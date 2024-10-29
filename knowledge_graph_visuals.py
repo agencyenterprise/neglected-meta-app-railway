@@ -7,6 +7,7 @@ import tqdm
 
 def load_post_centroid(df, comments, post_id, pingback=True):
     main_post = df[df["_id"] == post_id]
+
     if pingback:
         if len(main_post["pingback"].values) == 0:
             return pd.DataFrame(), pd.DataFrame()

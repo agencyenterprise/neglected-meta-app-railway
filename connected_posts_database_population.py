@@ -55,8 +55,7 @@ async def store_all_articles_in_db(depth=2):
 
         return successful, failed
     finally:
-        # Ensure pool is closed after processing
-        close_db_pool()
+        print("Finalizing database population")
 
 def main():
     parser = argparse.ArgumentParser(description="Populate database with connected posts.")
@@ -83,6 +82,8 @@ def main():
             print(f"  - {article}: {reason}")
     else:
         print("No articles failed due to errors.")
+
+    close_db_pool()
 
 if __name__ == "__main__":
     main()

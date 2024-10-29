@@ -89,49 +89,35 @@ def convert_ndarrays_to_lists(obj):
     else:
         return obj
 
-def calculate_dot_sizes(df: pd.DataFrame, min_size: float = 10, max_size: float = 100) -> pd.DataFrame:
-    def custom_sigmoid(x, k=6):
-        return 1 / (1 + np.exp(-k * (x - 0.5)))
-
-    def calculate_size(values):
-        # Convert to numeric, replacing non-numeric values with NaN
-        numeric_values = pd.to_numeric(values, errors='coerce')
+def calculate_dot_sizes(df: pd.DataFrame, min_size: float = 15, max_size: float = 150) -> pd.DataFrame:
+    def linear_scale(values):
+        # Convert to numeric, replacing non-numeric values with min_size
+        numeric_values = pd.to_numeric(values, errors='coerce').fillna(0)
         
-        # Replace zero or negative values with NaN
-        numeric_values = numeric_values.where(numeric_values > 0, np.nan)
-        
-        # If all values are NaN, return an array of min_size
-        if numeric_values.isna().all():
+        # If all values are 0 or the min equals max, return min_size
+        if numeric_values.max() == numeric_values.min() or numeric_values.max() == 0:
             return np.full(len(values), min_size)
-        
-        log_values = np.log1p(numeric_values)
-        
-        # Calculate min and max, ignoring NaN values
-        log_min = log_values.min()
-        log_max = log_values.max()
-        
-        # Normalize values, handling the case where min and max are equal
-        if log_min == log_max:
-            normalized_values = np.full(len(log_values), 0.5)
-        else:
-            normalized_values = (log_values - log_min) / (log_max - log_min)
-        
-        scaled_values = custom_sigmoid(normalized_values)
-        
-        # Calculate sizes, using min_size for NaN values
-        sizes = min_size + (max_size - min_size) * scaled_values
-        return sizes.fillna(min_size)
+            
+        # Calculate scaled values
+        return (min_size + (numeric_values - numeric_values.min()) / 
+                (numeric_values.max() - numeric_values.min()) * (max_size - min_size))
 
-    # Karma-based size calculation
-    df["dot_size_karma"] = calculate_size(df["karma"])
-
-    # Comment-based size calculation
-    df["dot_size_comments"] = calculate_size(df["commentCount"])
-    df["dot_size_comments"] = np.maximum(df["dot_size_comments"], min_size * 1.5)
-
-    # Upvote-based size calculation
-    df["dot_size_upvotes"] = calculate_size(df["upvoteCount"])
-    df["dot_size_upvotes"] = np.maximum(df["dot_size_upvotes"], min_size * 1.5)
+    # Apply standard scaling for karma and upvotes
+    df["dot_size_karma"] = linear_scale(df["karma"])
+    df["dot_size_upvotes"] = linear_scale(df["upvoteCount"])
+    
+    # Enhanced scaling for comments
+    comment_values = pd.to_numeric(df["commentCount"], errors='coerce').fillna(0)
+    
+    # Using square root scaling for better distribution
+    sqrt_values = np.sqrt(comment_values)
+    max_sqrt = sqrt_values.max()
+    
+    # Scale the square root values
+    df["dot_size_comments"] = min_size + (sqrt_values / max_sqrt) * (max_size - min_size) * 1.2
+    
+    # Ensure minimum size for zero comments
+    df["dot_size_comments"] = df["dot_size_comments"].clip(lower=min_size)
 
     return df
 
