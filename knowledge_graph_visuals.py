@@ -7,26 +7,15 @@ import tqdm
 
 def load_post_centroid(df, comments, post_id, pingback=True):
     main_post = df[df["_id"] == post_id]
-    
-    if main_post.empty:
-        print(f"Warning: Post {post_id} not found in dataset")
-        return pd.DataFrame(), pd.DataFrame()
-    
-    first_row = main_post.iloc[0] if not main_post.empty else None
-    if first_row is None:
-        return pd.DataFrame(), pd.DataFrame()
 
     if pingback:
-        pingback_values = first_row.get("pingback", [])
-        if not isinstance(pingback_values, list):
-            pingback_values = []
-        linked_articles = pingback_values
+        if len(main_post["pingback"].values) == 0:
+            return pd.DataFrame(), pd.DataFrame()
+        linked_articles = main_post["pingback"].values[0]
     else:
-        refs_values = first_row.get("refs", [])
-        if not isinstance(refs_values, list):
-            refs_values = []
-        linked_articles = refs_values
-
+        if len(main_post["refs"].values) == 0:
+            return pd.DataFrame(), pd.DataFrame()
+        linked_articles = main_post["refs"].values[0]
     linked_posts = df[df["_id"].isin(linked_articles)]
     new_df = pd.concat([main_post, linked_posts])
     relevant_comments = comments[comments["postId"].isin(new_df["_id"].unique())]

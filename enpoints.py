@@ -26,7 +26,7 @@ def start_population_script():
 
 file_date = create_and_download_files()
 
-# start_population_script()
+start_population_script()
 specter_embeddings = torch.load("app_files/specter_embeddings.pt")
 style_embeddings = torch.load("app_files/style_embeddings.pt")
 top_100_embeddings = torch.load("app_files/top_100_embeddings.pt")
