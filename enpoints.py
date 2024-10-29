@@ -235,8 +235,7 @@ def endpoint_connected_posts(a_name, depth, population=False):
                else datetime.strptime(db_result['updated_at'], "%Y-%m-%d %H:%M:%S").date())
     current_date = datetime.now(timezone.utc).date()
     
-    # is_up_to_date = db_date == current_date
-    is_up_to_date = False
+    is_up_to_date = db_date == current_date
     
     if db_result:
         if not population or (population and is_up_to_date):
