@@ -26,7 +26,7 @@ def start_population_script():
 
 file_date = create_and_download_files()
 
-start_population_script()
+# start_population_script()
 specter_embeddings = torch.load("app_files/specter_embeddings.pt")
 style_embeddings = torch.load("app_files/style_embeddings.pt")
 top_100_embeddings = torch.load("app_files/top_100_embeddings.pt")
@@ -89,49 +89,32 @@ def convert_ndarrays_to_lists(obj):
     else:
         return obj
 
-def calculate_dot_sizes(df: pd.DataFrame, min_size: float = 10, max_size: float = 100) -> pd.DataFrame:
-    def custom_sigmoid(x, k=6):
-        return 1 / (1 + np.exp(-k * (x - 0.5)))
-
-    def calculate_size(values):
-        # Convert to numeric, replacing non-numeric values with NaN
-        numeric_values = pd.to_numeric(values, errors='coerce')
+def calculate_dot_sizes(df: pd.DataFrame, min_size: float = 15, max_size: float = 150) -> pd.DataFrame:
+    def linear_scale(values, multiplier=1.5):
+        # Convert to numeric, replacing non-numeric values with min_size
+        numeric_values = pd.to_numeric(values, errors='coerce').fillna(0)
         
-        # Replace zero or negative values with NaN
-        numeric_values = numeric_values.where(numeric_values > 0, np.nan)
-        
-        # If all values are NaN, return an array of min_size
-        if numeric_values.isna().all():
+        # If all values are 0 or the min equals max, return min_size
+        if numeric_values.max() == numeric_values.min() or numeric_values.max() == 0:
             return np.full(len(values), min_size)
+            
+        # Calculate scaled values with multiplier to increase differences
+        scaled_values = (min_size + (numeric_values - numeric_values.min()) / 
+                        (numeric_values.max() - numeric_values.min()) * (max_size - min_size))
         
-        log_values = np.log1p(numeric_values)
+        # Apply multiplier to increase differences while maintaining min/max bounds
+        scaled_values = np.minimum(
+            max_size,
+            min_size + (scaled_values - min_size) * multiplier
+        )
         
-        # Calculate min and max, ignoring NaN values
-        log_min = log_values.min()
-        log_max = log_values.max()
-        
-        # Normalize values, handling the case where min and max are equal
-        if log_min == log_max:
-            normalized_values = np.full(len(log_values), 0.5)
-        else:
-            normalized_values = (log_values - log_min) / (log_max - log_min)
-        
-        scaled_values = custom_sigmoid(normalized_values)
-        
-        # Calculate sizes, using min_size for NaN values
-        sizes = min_size + (max_size - min_size) * scaled_values
-        return sizes.fillna(min_size)
+        # Replace any remaining NaN with min_size
+        return scaled_values.fillna(min_size)
 
-    # Karma-based size calculation
-    df["dot_size_karma"] = calculate_size(df["karma"])
-
-    # Comment-based size calculation
-    df["dot_size_comments"] = calculate_size(df["commentCount"])
-    df["dot_size_comments"] = np.maximum(df["dot_size_comments"], min_size * 1.5)
-
-    # Upvote-based size calculation
-    df["dot_size_upvotes"] = calculate_size(df["upvoteCount"])
-    df["dot_size_upvotes"] = np.maximum(df["dot_size_upvotes"], min_size * 1.5)
+    # Apply the enhanced linear scaling to all metrics
+    df["dot_size_karma"] = linear_scale(df["karma"], multiplier=1.1)
+    df["dot_size_comments"] = linear_scale(df["commentCount"], multiplier=2.5)
+    df["dot_size_upvotes"] = linear_scale(df["upvoteCount"], multiplier=1.5)
 
     return df
 
@@ -249,7 +232,8 @@ def endpoint_connected_posts(a_name, depth, population=False):
                else datetime.strptime(db_result['updated_at'], "%Y-%m-%d %H:%M:%S").date())
     current_date = datetime.now(timezone.utc).date()
     
-    is_up_to_date = db_date == current_date
+    # is_up_to_date = db_date == current_date
+    is_up_to_date = False
     
     if db_result:
         if not population or (population and is_up_to_date):
