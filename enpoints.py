@@ -90,7 +90,7 @@ def convert_ndarrays_to_lists(obj):
         return obj
 
 def calculate_dot_sizes(df: pd.DataFrame, min_size: float = 15, max_size: float = 150) -> pd.DataFrame:
-    def linear_scale(values, multiplier=1.5):
+    def linear_scale(values):
         # Convert to numeric, replacing non-numeric values with min_size
         numeric_values = pd.to_numeric(values, errors='coerce').fillna(0)
         
@@ -98,23 +98,26 @@ def calculate_dot_sizes(df: pd.DataFrame, min_size: float = 15, max_size: float 
         if numeric_values.max() == numeric_values.min() or numeric_values.max() == 0:
             return np.full(len(values), min_size)
             
-        # Calculate scaled values with multiplier to increase differences
-        scaled_values = (min_size + (numeric_values - numeric_values.min()) / 
-                        (numeric_values.max() - numeric_values.min()) * (max_size - min_size))
-        
-        # Apply multiplier to increase differences while maintaining min/max bounds
-        scaled_values = np.minimum(
-            max_size,
-            min_size + (scaled_values - min_size) * multiplier
-        )
-        
-        # Replace any remaining NaN with min_size
-        return scaled_values.fillna(min_size)
+        # Calculate scaled values
+        return (min_size + (numeric_values - numeric_values.min()) / 
+                (numeric_values.max() - numeric_values.min()) * (max_size - min_size))
 
-    # Apply the enhanced linear scaling to all metrics
-    df["dot_size_karma"] = linear_scale(df["karma"], multiplier=1.1)
-    df["dot_size_comments"] = linear_scale(df["commentCount"], multiplier=2.5)
-    df["dot_size_upvotes"] = linear_scale(df["upvoteCount"], multiplier=1.5)
+    # Apply standard scaling for karma and upvotes
+    df["dot_size_karma"] = linear_scale(df["karma"])
+    df["dot_size_upvotes"] = linear_scale(df["upvoteCount"])
+    
+    # Enhanced scaling for comments
+    comment_values = pd.to_numeric(df["commentCount"], errors='coerce').fillna(0)
+    
+    # Using square root scaling for better distribution
+    sqrt_values = np.sqrt(comment_values)
+    max_sqrt = sqrt_values.max()
+    
+    # Scale the square root values
+    df["dot_size_comments"] = min_size + (sqrt_values / max_sqrt) * (max_size - min_size) * 1.2
+    
+    # Ensure minimum size for zero comments
+    df["dot_size_comments"] = df["dot_size_comments"].clip(lower=min_size)
 
     return df
 
