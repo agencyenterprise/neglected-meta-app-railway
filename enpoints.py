@@ -148,7 +148,7 @@ def endpoint_similarity_score(article_list, compared_authors):
         "Wei Dai",
         "Zvi",
         "lukeprog",
-        "NancyLebovitz",
+        # "NancyLebovitz",
         "gjm",
         "Vladimir_Nesov",
     ]
@@ -228,30 +228,31 @@ def endpoint_specter_clustering(n, cluster_choice, select_by_content):
 def endpoint_connected_posts(a_name, depth, population=False):
     # Try to get the result from database
     db_result = get_connected_posts_from_db(a_name, depth)
-
-    # Convert to date for comparison, handling both string and datetime inputs
-    db_date = (db_result['updated_at'].date() 
-               if isinstance(db_result['updated_at'], datetime) 
-               else datetime.strptime(db_result['updated_at'], "%Y-%m-%d %H:%M:%S").date())
-    current_date = datetime.now(timezone.utc).date()
     
-    is_up_to_date = db_date == current_date
-    
-    if db_result:
+    # Check if db_result exists and has required data
+    if db_result and 'updated_at' in db_result:
+        # Convert to date for comparison, handling both string and datetime inputs
+        db_date = (db_result['updated_at'].date() 
+                  if isinstance(db_result['updated_at'], datetime) 
+                  else datetime.strptime(db_result['updated_at'], "%Y-%m-%d %H:%M:%S").date())
+        current_date = datetime.now(timezone.utc).date()
+        
+        is_up_to_date = db_date == current_date
+        
         if not population or (population and is_up_to_date):
             return db_result
 
-    # If not found in database, compute the result
+    # If not found in database or data is invalid, compute the result
     filtered = df[df["title"].str.strip() == a_name]
 
-    if not filtered.empty:
-        post_id = filtered["_id"].values[0]
-    else:
+    if filtered.empty:
         return {
             'nodes': [],
             'edges': [],
+            'updated_at': datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
         }
 
+    post_id = filtered["_id"].values[0]
     raw_nodes, raw_edges = get_raw_graph(df, comments, post_id, user_df, d=depth)
 
     result = {
