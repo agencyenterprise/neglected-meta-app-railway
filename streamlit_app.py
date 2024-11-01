@@ -1,17 +1,18 @@
-import pandas as pd
-from utils import quantile_transformation, prepare_concept_for_request
-import streamlit as st
-from streamlit_agraph import agraph, Node, Edge, Config, ConfigBuilder
-from specter_cluster_viz import create_viz
-from cav_calc import compare_authors, batch_author_similarity_score
-from sentence_transformers import util
-import torch
 import json
-import numpy as np
 import os
+
+import numpy as np
+import pandas as pd
+import streamlit as st
+import torch
+from sentence_transformers import util
+from streamlit_agraph import Config, ConfigBuilder, Edge, Node, agraph
+
+from cav_calc import batch_author_similarity_score, compare_authors
 from Google import create_and_download_files
 from knowledge_graph_visuals import build_graph
-
+from specter_cluster_viz import create_viz
+from utils import prepare_concept_for_request, quantile_transformation
 
 create_and_download_files()
 specter_embeddings = torch.load("app_files/specter_embeddings.pt")
@@ -117,7 +118,7 @@ with tab1:
             "Wei Dai Similarity Score",
             "Zvi Similarity Score",
             "lukeprog Similarity Score",
-            "NancyLebovitz Similarity Score",
+            # "NancyLebovitz Similarity Score",
             "gjm Similarity Score",
             "Vladimir_Nesov Similarity Score",
             "Front Page Similarity",
@@ -204,7 +205,7 @@ with tab2:
             "Wei Dai",
             "Zvi",
             "lukeprog",
-            "NancyLebovitz",
+            # "NancyLebovitz",
             "gjm",
             "Vladimir_Nesov",
         ]
