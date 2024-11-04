@@ -1,12 +1,14 @@
-from sklearn.cluster import KMeans
-from sklearn.decomposition import PCA
-import pandas as pd
-import plotly.graph_objs as go
-import textwrap
-from scipy.spatial import ConvexHull
-import numpy as np
 import colorsys
 import random
+import textwrap
+
+import numpy as np
+import pandas as pd
+import plotly.graph_objs as go
+from scipy.spatial import ConvexHull
+from sklearn.cluster import KMeans
+from sklearn.decomposition import PCA
+
 
 def create_clusters(df, n_clusters, embeddings):
     kmeans = KMeans(n_clusters=n_clusters, random_state=0)
@@ -40,7 +42,7 @@ def aggregate_by_cluster(df):
     "Wei Dai Similarity Score",
     "Zvi Similarity Score",
     "lukeprog Similarity Score",
-    "NancyLebovitz Similarity Score",
+    # "NancyLebovitz Similarity Score",
     "gjm Similarity Score",
     "Vladimir_Nesov Similarity Score",
     "Front Page Similarity",

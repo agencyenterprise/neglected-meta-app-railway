@@ -7,23 +7,24 @@ import tqdm
 
 def load_post_centroid(df, comments, post_id, pingback=True):
     main_post = df[df["_id"] == post_id]
+
     if pingback:
-        if len(main_post["pingback_posts"].values) == 0:
+        if len(main_post["pingback"].values) == 0:
             return pd.DataFrame(), pd.DataFrame()
-        linked_articles = main_post["pingback_posts"].values[0]
+        linked_articles = main_post["pingback"].values[0]
     else:
-        if len(main_post["references"].values) == 0:
+        if len(main_post["refs"].values) == 0:
             return pd.DataFrame(), pd.DataFrame()
-        linked_articles = main_post["references"].values[0]
+        linked_articles = main_post["refs"].values[0]
     linked_posts = df[df["_id"].isin(linked_articles)]
     new_df = pd.concat([main_post, linked_posts])
     relevant_comments = comments[comments["postId"].isin(new_df["_id"].unique())]
     return new_df, relevant_comments
 
-def get_references_tree(df, comments, post_id, depth=1, pingback=True):
+def get_refs_tree(df, comments, post_id, depth=1, pingback=True):
     queue = [post_id]
     visited = set()
-    references = []
+    refs = []
     comms = []
 
     for i in range(depth):
@@ -38,24 +39,24 @@ def get_references_tree(df, comments, post_id, depth=1, pingback=True):
             if post_df.empty:
                 continue  # Skip if the post is not found
 
-            references.append(post_df)
+            refs.append(post_df)
             comms.append(comm_df)
 
-            # Add the next level of references and pingback posts to the queue
-            if len(post_df["pingback_posts"].values) > 0:
-                new_queue.extend(post_df["pingback_posts"].values[0])
-            if len(post_df["references"].values) > 0:
-                new_queue.extend(post_df["references"].values[0])
+            # Add the next level of refs and pingback posts to the queue
+            if len(post_df["pingback"].values) > 0:
+                new_queue.extend(post_df["pingback"].values[0])
+            if len(post_df["refs"].values) > 0:
+                new_queue.extend(post_df["refs"].values[0])
 
         queue = new_queue
 
-    ref_df = pd.concat(references).drop_duplicates(subset="_id")
+    ref_df = pd.concat(refs).drop_duplicates(subset="_id")
     comms_df = pd.concat(comms).drop_duplicates(subset="_id")
     return ref_df, comms_df
 
 def get_graph_dfs(df, comments, post_id, user_df, d=2):
-    pingback_df, pingback_comment_df = get_references_tree(df, comments, post_id, depth=d, pingback=True)
-    ref_df, ref_comment_df = get_references_tree(df, comments, post_id, depth=d, pingback=False)
+    pingback_df, pingback_comment_df = get_refs_tree(df, comments, post_id, depth=d, pingback=True)
+    ref_df, ref_comment_df = get_refs_tree(df, comments, post_id, depth=d, pingback=False)
     post_df = pd.concat([pingback_df, ref_df])
     comment_df = pd.concat([pingback_comment_df, ref_comment_df])
     post_df.drop_duplicates(subset="_id", inplace=True)
@@ -91,13 +92,13 @@ def build_graph(df, comments, post_id, user_df, depth=2):
             "commentCount": row["commentCount"],
             "url": row["url"]
         })
-    # print("Step 2/5: Creating references edges")
+    # print("Step 2/5: Creating refs edges")
     for i, row in tqdm.tqdm(post_df.iterrows(), total=post_df.shape[0]):
-        for ref in row["references"]:
+        for ref in row["refs"]:
             edges.append({
                 "source": row["_id"],
                 "target": ref,
-                "label": "references"
+                "label": "refs"
             })
     # print("Step 3/7: Creating author nodes")
     # for i, row in tqdm.tqdm(relevant_user_df.iterrows(), total=relevant_user_df.shape[0]):

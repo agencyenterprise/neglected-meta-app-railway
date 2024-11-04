@@ -14,7 +14,7 @@ from enpoints import (endpoint_author_similarity_score,
                       endpoint_dataframe, endpoint_get_articles,
                       endpoint_get_authors, endpoint_get_content,
                       endpoint_similarity_score, endpoint_specter_clustering)
-from utils import create_approach, list_approaches
+from utils import create_approach, list_approaches, send_feedback_email
 
 app = Flask(__name__)
 
@@ -196,15 +196,25 @@ def create_new_approach():
         "spotlight_count": new_count
     }), 201
 
-def start_population_script():
-  try:
-      subprocess.Popen([sys.executable, 'run_population.py'])
-      print("Population process started.")
-  except Exception as e:
-      print(f"Failed to start population process: {e}")
+@app.route('/api/send-feedback', methods=['POST'])
+def send_feedback():
+    data = request.json
+    name = data.get('name')
+    email = data.get('email')
+    feedback = data.get('feedback')
 
-with app.app_context():
-    start_population_script()
+    if not all([name, email, feedback]):
+        return jsonify({"error": "Name, email, and feedback are required"}), 400
+
+    success = send_feedback_email(name, email, feedback)
+
+    if success:
+        return jsonify({"message": "Feedback sent successfully"}), 200
+    else:
+        return jsonify({"error": "Failed to send feedback"}), 500
+
+# with app.app_context():
+#     start_population_script()
 
 if __name__ == '__main__':
     app.run(port=5000, debug=True)

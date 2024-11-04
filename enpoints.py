@@ -1,12 +1,12 @@
 import json
 import os
+import subprocess
+import sys
+from datetime import datetime, timezone
 
 import numpy as np
 import pandas as pd
-import streamlit as st
 import torch
-from scipy import stats
-from sentence_transformers import util
 from streamlit_agraph import Config, ConfigBuilder, Edge, Node, agraph
 
 from cav_calc import batch_author_similarity_score, compare_authors
@@ -16,7 +16,17 @@ from specter_cluster_viz import create_viz
 from utils import (get_connected_comments_from_db, get_connected_posts_from_db,
                    save_connected_posts_to_db)
 
-create_and_download_files()
+
+def start_population_script():
+  try:
+      subprocess.Popen([sys.executable, 'run_population.py'])
+      print("Population process started.")
+  except Exception as e:
+      print(f"Failed to start population process: {e}")
+
+file_date = create_and_download_files()
+
+start_population_script()
 specter_embeddings = torch.load("app_files/specter_embeddings.pt")
 style_embeddings = torch.load("app_files/style_embeddings.pt")
 top_100_embeddings = torch.load("app_files/top_100_embeddings.pt")
@@ -79,29 +89,35 @@ def convert_ndarrays_to_lists(obj):
     else:
         return obj
 
-def calculate_dot_sizes(df: pd.DataFrame, min_size: float = 10, max_size: float = 100) -> pd.DataFrame:
-    def custom_sigmoid(x, k=6):
-        return 1 / (1 + np.exp(-k * (x - 0.5)))
+def calculate_dot_sizes(df: pd.DataFrame, min_size: float = 15, max_size: float = 150) -> pd.DataFrame:
+    def linear_scale(values):
+        # Convert to numeric, replacing non-numeric values with min_size
+        numeric_values = pd.to_numeric(values, errors='coerce').fillna(0)
+        
+        # If all values are 0 or the min equals max, return min_size
+        if numeric_values.max() == numeric_values.min() or numeric_values.max() == 0:
+            return np.full(len(values), min_size)
+            
+        # Calculate scaled values
+        return (min_size + (numeric_values - numeric_values.min()) / 
+                (numeric_values.max() - numeric_values.min()) * (max_size - min_size))
 
-    def calculate_size(values):
-        log_values = np.log1p(values)
-        normalized_values = (log_values - log_values.min()) / (log_values.max() - log_values.min())
-        scaled_values = custom_sigmoid(normalized_values)
-        return min_size + (max_size - min_size) * scaled_values
-
-    # Karma-based size calculation
-    df["dot_size_karma"] = (
-        min_size
-        + (df["karma"] - df["karma"].min()) / (df["karma"].max() - df["karma"].min()) * (max_size - min_size)
-    )
-
-    # Comment-based size calculation
-    df["dot_size_comments"] = calculate_size(df["commentCount"])
-    df["dot_size_comments"] = np.maximum(df["dot_size_comments"], min_size * 1.5)
-
-    # Upvote-based size calculation
-    df["dot_size_upvotes"] = calculate_size(df["upvoteCount"])
-    df["dot_size_upvotes"] = np.maximum(df["dot_size_upvotes"], min_size * 1.5)
+    # Apply standard scaling for karma and upvotes
+    df["dot_size_karma"] = linear_scale(df["karma"])
+    df["dot_size_upvotes"] = linear_scale(df["upvoteCount"])
+    
+    # Enhanced scaling for comments
+    comment_values = pd.to_numeric(df["commentCount"], errors='coerce').fillna(0)
+    
+    # Using square root scaling for better distribution
+    sqrt_values = np.sqrt(comment_values)
+    max_sqrt = sqrt_values.max()
+    
+    # Scale the square root values
+    df["dot_size_comments"] = min_size + (sqrt_values / max_sqrt) * (max_size - min_size) * 1.2
+    
+    # Ensure minimum size for zero comments
+    df["dot_size_comments"] = df["dot_size_comments"].clip(lower=min_size)
 
     return df
 
@@ -132,7 +148,7 @@ def endpoint_similarity_score(article_list, compared_authors):
         "Wei Dai",
         "Zvi",
         "lukeprog",
-        "NancyLebovitz",
+        # "NancyLebovitz",
         "gjm",
         "Vladimir_Nesov",
     ]
@@ -209,24 +225,34 @@ def endpoint_specter_clustering(n, cluster_choice, select_by_content):
     }
 
 
-def endpoint_connected_posts(a_name, depth):
+def endpoint_connected_posts(a_name, depth, population=False):
     # Try to get the result from database
     db_result = get_connected_posts_from_db(a_name, depth)
     
-    if db_result:
-        return db_result
+    # Check if db_result exists and has required data
+    if db_result and 'updated_at' in db_result:
+        # Convert to date for comparison, handling both string and datetime inputs
+        db_date = (db_result['updated_at'].date() 
+                  if isinstance(db_result['updated_at'], datetime) 
+                  else datetime.strptime(db_result['updated_at'], "%Y-%m-%d %H:%M:%S").date())
+        current_date = datetime.now(timezone.utc).date()
+        
+        is_up_to_date = db_date == current_date
+        
+        if not population or (population and is_up_to_date):
+            return db_result
 
-    # If not found in database, compute the result
+    # If not found in database or data is invalid, compute the result
     filtered = df[df["title"].str.strip() == a_name]
 
-    if not filtered.empty:
-        post_id = filtered["_id"].values[0]
-    else:
+    if filtered.empty:
         return {
             'nodes': [],
             'edges': [],
+            'updated_at': datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
         }
 
+    post_id = filtered["_id"].values[0]
     raw_nodes, raw_edges = get_raw_graph(df, comments, post_id, user_df, d=depth)
 
     result = {
@@ -271,7 +297,9 @@ def endpoint_get_authors():
     return author_name_list
 
 def endpoint_get_articles():
-    return article_names
+    filtered_articles = [article for article in article_names if 'meetup' not in article.lower()]
+    
+    return filtered_articles
 
 def endpoint_get_content():
     return app_info["text"].to_list()
