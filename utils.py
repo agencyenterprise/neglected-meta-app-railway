@@ -380,6 +380,12 @@ def delete_meetup_posts():
         cur.execute("DELETE FROM connected_posts WHERE LOWER(a_name) LIKE LOWER('%meetup%')")
         cur.close()
 
+def delete_all_connected_posts():
+    with get_db_connection() as conn:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM connected_posts")
+        cur.close()
+
 def get_pool_status() -> dict[str, Any]:
     """Get current status of the connection pool."""
     if connection_pool is None:
