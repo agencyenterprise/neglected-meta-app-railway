@@ -383,8 +383,30 @@ def delete_meetup_posts():
 def delete_all_connected_posts():
     with get_db_connection() as conn:
         cur = conn.cursor()
-        cur.execute("DELETE FROM connected_posts")
+        cur.execute("TRUNCATE TABLE connected_posts")
+        cur.execute("ALTER SEQUENCE IF EXISTS connected_posts_id_seq RESTART WITH 1")
         cur.close()
+
+    conn = None
+    try:
+        if connection_pool is None:
+            initialize_db_pool()
+        conn = connection_pool.getconn()
+        conn.set_session(autocommit=True)
+        cur = conn.cursor()
+        cur.execute("VACUUM FULL")
+        cur.close()
+    finally:
+        if conn is not None:
+            try:
+                conn.set_session(autocommit=False) 
+                connection_pool.putconn(conn)
+            except Exception as e:
+                logger.error(f"Error releasing connection: {str(e)}")
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
 def get_pool_status() -> dict[str, Any]:
     """Get current status of the connection pool."""
