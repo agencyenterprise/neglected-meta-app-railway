@@ -7,7 +7,7 @@ from sqlalchemy import create_engine, text
 from tqdm import tqdm
 
 from enpoints import endpoint_connected_posts, endpoint_get_articles
-from utils import close_db_pool, delete_meetup_posts, get_db_connection
+from utils import close_db_pool, delete_all_connected_posts, get_db_connection
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 MAX_DB_SIZE_GB = 48
@@ -22,7 +22,7 @@ def get_db_size_gb():
 
 async def store_all_articles_in_db(depth=2):
     try:
-        delete_meetup_posts()
+        delete_all_connected_posts()
         articles = endpoint_get_articles()
         total_articles = len(articles)
 
