@@ -74,7 +74,7 @@ pyzmq==26.0.3
 rdflib==7.0.0
 referencing==0.35.1
 regex==2024.5.15
-requests==2.32.3
+requests==2.33.0
 requests-oauthlib==2.0.0
 rich==13.7.1
 rpds-py==0.18.1
